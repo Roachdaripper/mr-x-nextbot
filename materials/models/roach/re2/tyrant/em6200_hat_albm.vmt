@@ -1,0 +1,23 @@
+
+"VertexLitGeneric"
+{
+    "$baseTexture" "models\roach\re2\tyrant\em6200_hat_albm"
+	$nocull 1
+    
+    "$normalmap" "models\roach\re2\tyrant\em6200_hat_nrmr.vtf"
+        
+    "$nocull" "1"
+
+    "$phong" "1" //specular phong info
+    "$phongboost" "0.02" //specular phong info
+    "$phongexponent" "25" //specular phong info
+    "$phongfresnelranges"  "[.5 1.5 2]" //specular phong info
+
+    "$surfaceprop" "default"
+
+    "$rimlight" "1" //specular phong info related to rimlight
+    "$rimlightexponent" "2" //specular phong info related to rimlight
+    "$rimlightboost" "0.5" //specular phong info related to rimlight
+    $nodecal 1
+}
+        
