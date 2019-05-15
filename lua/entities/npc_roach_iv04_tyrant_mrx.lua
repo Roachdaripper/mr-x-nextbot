@@ -1,5 +1,5 @@
 
-local ENT = {}
+AddCSLuaFile()
 ENT.Type = "nextbot"
 ----------------------------------------------
 ENT.Base     = "base_nextbot"
@@ -7,10 +7,16 @@ ENT.Spawnable= true
 ENT.Category = "nZombies Unlimited"
 ENT.Author = "Roach"
 
+
+list.Set("NPC", "npc_roach_iv04_tyrant_mrx", {
+	Name = "Mr. X",
+	Class = "npc_roach_iv04_tyrant_mrx",
+	Category = "RE2 Nextbots"
+})
 if CLIENT then	language.Add("npc_roach_iv04_tyrant_mrx","Mr. X")end
 
 -- Essentials --
-ENT.Model = "models/roach/re2/tyrant_v2.mdl"	-- Our model.
+ENT.Model = "models/roach/re2/tyrant_v5.mdl"	-- Our model.
 ENT.health = 500000								-- Our health.
 ENT.Speed = 105									-- How fast we move.
 ENT.WalkAnim = "0200"
@@ -29,6 +35,8 @@ function ENT:snd(a,b)
 	end)
 end
 
+function ENT:Think()
+end
 function ENT:CustomInit()
 	self.PissedOff = false
 	self.CanAttack = false
@@ -37,13 +45,14 @@ function ENT:CustomInit()
 	self.ShotOffHat = false
 	self.HiddenHealth = 5000
 	self.CanCommitDie = false
+	self.IsShocked = false
 	self.IsDead = false
 	self.IsPlayingGesture = false
 
 	for i=3,117 do self:ManipulateBoneJiggle(i, 1) end
 	
 	self:SetCollisionBounds(Vector(-14,-20,0), Vector(15,20,93))
-	if SERVER then self:SetSolidMask(MASK_NPCSOLID_BRUSHONLY) end
+	if SERVER then self:SetSolidMask(MASK_NPCSOLID) end
 end
 function ENT:OnSpawn()
 	local tr = util.TraceLine({
@@ -73,20 +82,45 @@ function ENT:OnSpawn()
 end
 
 function ENT:OnContact(ent)
-	if self.CanAttack and table.HasValue(self.AllyNPCTable,ent:GetClass()) then
+	if self.CanAttack and (ent != self:GetTarget()) and (ent:IsPlayer() or ent:IsNPC()) then
 		self.CanAttack = false
-		if math.random(1,2) == 1 then
-			self:RestartGesture(ACT_GESTURE_MELEE_ATTACK1)
+		local right = self:GetPos()+self:GetRight()*1
+		local left = self:GetPos()-self:GetRight()*1
+		local pos = ent:GetPos()
+		if left:DistToSqr(pos) < right:DistToSqr(pos) then
+			self:RestartGesture(140)
 			timer.Simple(0.4,function()
 				if !IsValid(self) then return end
-				ent:SetPos(self:LocalToWorld(Vector(0,50,0)))
+				
+				print("RIGHT")
+				local dmg = DamageInfo()
+				dmg:SetDamage(100000)
+				dmg:SetDamageForce(self:GetRight()* -Vector(0,50000000,0))
+				dmg:SetDamageType(DMG_CLUB)
+				dmg:SetAttacker(self)
+				dmg:SetReportedPosition(self:GetPos())
+				
+				ent:SetVelocity(self:GetRight()* -Vector(0,50000000,990))
+				ent:TakeDamageInfo(dmg)
+				
 				self:EmitSound("re2/em6200/attack_hit"..self:rnd(5)..".mp3",511,100)
 			end)
 		else
-			self:RestartGesture(ACT_GESTURE_MELEE_ATTACK2)
+			self:RestartGesture(self:GetSequenceActivity( self:LookupSequence("g_puntL2") ))
 			timer.Simple(0.4,function()
 				if !IsValid(self) then return end
-				ent:SetPos(self:LocalToWorld(Vector(0,-50,0)))
+				
+				print("LEFT")
+				local dmg = DamageInfo()
+				dmg:SetDamage(100000)
+				dmg:SetDamageForce(self:GetRight()*Vector(0,50000000,0))
+				dmg:SetDamageType(DMG_CLUB)
+				dmg:SetAttacker(self)
+				dmg:SetReportedPosition(self:GetPos())
+				
+				ent:SetVelocity(self:GetRight()* Vector(0,50000000,990))
+				ent:TakeDamageInfo(dmg)
+				
 				self:EmitSound("re2/em6200/attack_hit"..self:rnd(5)..".mp3",511,100)
 			end)
 		end
@@ -99,9 +133,11 @@ function ENT:OnLeaveGround()
 	self:ResetSequence(seqid)
 end
 function ENT:OnLandOnGround()
-	self.CanAttack = false
-	self.loco:SetDesiredSpeed(0)
-	self:EmitSound("re2/em6200/land.mp3",511,100)
+	if self:GetSequence() == "1500" then
+		self.CanAttack = false
+		self.loco:SetDesiredSpeed(0)
+		self:EmitSound("re2/em6200/land.mp3",511,100)
+	end
 	
 	local seqid,dur = self:LookupSequence("1750")
 	self:ResetSequence(seqid)
@@ -134,7 +170,7 @@ function ENT:CustomChaseTarget(target)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",2.6)
 			
 			self:Helper_Attack(v,1,"3000",50,96,"re2/em6200/attack_hit"..self:rnd(5)..".mp3")
-			if self:GetTarget():GetIsDowned() then self:SetTarget(nil) end
+			if self:GetTarget():Health() <= 0 then self:SetTarget(nil)self:CustomIdle() end
 		elseif rm == 2 then
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0.1)
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0.5)
@@ -142,25 +178,27 @@ function ENT:CustomChaseTarget(target)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",3.2)
 				
 			self:Helper_Attack(v,1,"3001",50,96,"re2/em6200/attack_hit"..self:rnd(5)..".mp3")
-			if self:GetTarget():GetIsDowned() then self:SetTarget(nil) end
+			if self:GetTarget():Health() <= 0 then self:SetTarget(nil)self:CustomIdle() end
 		elseif rm == 3 then
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0.1)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",2)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",2.4)
 			
 			self:Helper_Attack(v,0.6,"3002",30,96,"re2/em6200/attack_hit"..self:rnd(5)..".mp3")
-			if self:GetTarget():GetIsDowned() then self:SetTarget(nil) end
+			if self:GetTarget():Health() <= 0 then self:SetTarget(nil)self:CustomIdle() end
 		elseif rm == 4 then
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0.1)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",2)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",2.6)
 			
 			self:Helper_Attack(v,0.6,"3003",30,96,"re2/em6200/attack_hit"..self:rnd(5)..".mp3")
-			if self:GetTarget():GetIsDowned() then self:SetTarget(nil) end
+			if self:GetTarget():Health() <= 0 then self:SetTarget(nil)self:CustomIdle() end
 		end
 	end
 end
-function ENT:CustomIdle()end
+function ENT:CustomIdle()
+	self:ResetSequence("0000")
+end
 function ENT:CustomRunBehaviour()end
 function ENT:OnKilled(dmginfo)
 	ErrorNoHalt("Tyrant [Index: "..self:EntIndex().."] just died! This shouldn't happen!")
@@ -201,20 +239,25 @@ function ENT:OnInjured(dmginfo)
 		end	
 	self.HiddenHealth = self.HiddenHealth - dmginfo:GetDamage()
 	dmginfo:ScaleDamage(0)
-	if self.HiddenHealth <= 0 then
-		self.HiddenHealth = 5000
-		if self.PissedOff then
-			self:DoChangeWalk()
-			self.PissedOff = false
-		end
-		self.CanCommitDie = true
+	if dmginfo:GetDamageType() == DMG_SHOCK then 
+		self.CanCommitDie = true 
+		self.IsShocked = true 
 	else
-		if !self.PissedOff and self:GetSequence() == "0200" then
-			self:DoChangeRun()
-			self.PissedOff = true
+		if self.HiddenHealth <= 0 then
+			self.HiddenHealth = 5000
+			if self.PissedOff then
+				self:DoChangeWalk()
+				self.PissedOff = false
+			end
+			self.CanCommitDie = true
+		else
+			if !self.PissedOff and self:GetSequence() == "0200" then
+				self:DoChangeRun()
+				self.PissedOff = true
+			end
+			
+			if dmginfo:IsExplosionDamage() then self.CanFlinch = true end
 		end
-		
-		if dmginfo:IsExplosionDamage() then self.CanFlinch = true end
 	end
 end
 function ENT:DoChangeWalk()
@@ -319,15 +362,48 @@ function ENT:CommitDie()
 	self.CanCommitDie = false
 	self.IsDead = true
 	
-	self:snd("re2/em6200/step"..self:rnd(6)..".mp3",18/30)
-	self:snd("re2/em6200/land.mp3",43/30)
-	self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",43/30)
-	self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",43/30)
-	self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",43/30)
-	self:PlaySequenceAndWait("2200")
-	
-	self:ResetSequence("2201")	
-	coroutine.wait(30)
+	if self.IsShocked then
+		self.IsShocked = false
+		
+		local fx = EffectData()
+		fx:SetEntity(self)
+		fx:SetOrigin(self:LocalToWorld(Vector(0,0,50)))
+		fx:SetStart(self:LocalToWorld(Vector(0,0,50)))
+		fx:SetScale(1)
+		fx:SetMagnitude(10)
+		for i=1,math.Round(162/30,1)*10 do
+			timer.Simple(0.1*i,function()
+				if !IsValid(self) then return end
+				self:EmitSound("ambient/energy/spark"..math.random(1,6)..".wav")
+				util.Effect("teslahitboxes",fx)
+			end)
+		end
+		self:snd("re2/em6200/step"..self:rnd(6)..".mp3",6/30)
+		self:snd("re2/em6200/step"..self:rnd(6)..".mp3",14/30)
+		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",43/30)
+		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",43/30)
+		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",43/30)
+		self:snd("darksouls/npc/fsb.frpg_c2300/s230012302.wav.mp3",5.4)		
+		self:PlaySequenceAndWait("2251")
+		
+		ParticleEffect("hunter_projectile_explosion_1",self:LocalToWorld(Vector(0,0,50)),Angle(0,0,0),nil)
+		self:snd("re2/em6200/step"..self:rnd(6)..".mp3",44/30)
+		self:snd("re2/em6200/land.mp3",72/30)
+		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",72/30)
+		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",72/30)
+		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",72/30)
+		self:PlaySequenceAndWait("2252")
+	else
+		self:snd("re2/em6200/step"..self:rnd(6)..".mp3",18/30)
+		self:snd("re2/em6200/land.mp3",43/30)
+		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",43/30)
+		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",43/30)
+		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",43/30)
+		self:PlaySequenceAndWait("2200")
+		
+		self:ResetSequence("2201")	
+		coroutine.wait(30)
+	end
 	
 	self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",0)
 	self:snd("re2/em6200/foley_adjust_hat"..self:rnd(2)..".mp3",40/30)
@@ -365,13 +441,16 @@ function ENT:BodyUpdate()
 end
 -----------------------------------------------------------------------------------------
 local function validtarget(ent)
-	return IsValid(ent) and ent:IsTargetable()
+	return IsValid(ent) and (ent:IsPlayer() or ent:IsNPC())
+end
+function ENT:CalculateNextRetarget(target, dist)
+	return math.Clamp(dist/200, 3, 15) -- 1 second for every 100 units to the closet player
 end
 -- Lets your determine what target to go for next upon retargeting
 function ENT:SelectTarget()
 	local mindist = math.huge
 	local target
-	for k,v in pairs(nzu.GetAllTargetablePlayers()) do
+	for k,v in pairs(player.GetAll()) do
 		local d = self:GetRangeTo(v)
 		if d < mindist and self:AcceptTarget(v) then
 			target = v
@@ -382,7 +461,7 @@ function ENT:SelectTarget()
 	return target, mindist
 end
 
-function ENT:AcceptTarget(t)return IsValid(t) and t:IsTargetable()end
+function ENT:AcceptTarget(t)return IsValid(t) and (t:IsPlayer() or t:IsNPC())end
 function ENT:GetTarget()return self.Target end
 function ENT:SetTarget(ent)if self:AcceptTarget(ent) then self.Target = ent	return true else return false end end
 
@@ -419,7 +498,7 @@ function ENT:FindTarget()
 				return true 
 			end 
 		end 
-	self:SetTarget(nil)
+	self:SetTarget(nil)self:CustomIdle()
 	return false 
 end
 -----------------------------------------------------------------------------------------
@@ -437,6 +516,7 @@ function ENT:SpawnIn()
 	self:OnSpawn()
 end
 function ENT:RunBehaviour()
+	self:Retarget()
 	self:SpawnIn()
 	while (true) do
 		self:CustomRunBehaviour()
@@ -495,12 +575,15 @@ function ENT:Helper_Attack(victim,delay,sequence,damage,damageradius,hitsound)
 	if (IsValid(v) and (v:IsPlayer() && v:Alive())) then
 		if not (v:IsValid() && v:Health() > 0) then return end
 		timer.Simple(delay,function()
+			if !IsValid(self) then return end
 			if !IsValid(v) then return end
 			for k,ent in pairs(ents.FindInSphere(self:LocalToWorld(Vector(damageradius,0,0)),damageradius)) do
-				if nzu.Round.Zombies[ent] then
+				if table.HasValue(self.AllyNPCTable,ent:GetClass()) then
 					ent:TakeDamage(10000,self)
-					self:EmitSound(hitsound)
-					self.CanTaunt = true
+					if IsValid(self) then
+						self:EmitSound(hitsound)
+						self.CanTaunt = true
+					end
 				end
 			end
 			if self:GetRangeTo(v:GetPos()) > damageradius then return end
@@ -510,6 +593,14 @@ function ENT:Helper_Attack(victim,delay,sequence,damage,damageradius,hitsound)
 			if math.random(1,5) <= 3 then
 				self.CanTaunt = true
 			end
+			
+			-- unstuck code in-case the player is gay
+				if self:GetRangeTo(v:GetPos()) < 70 then
+					self:SetNotSolid(true)
+						self:CollisionBounce(70,256)
+					timer.Simple(0.5,function()self:SetNotSolid(false)end)
+				end
+			--
 		end)
 		if sequence != "" then
 			self:PlaySequenceAndWait(sequence)
@@ -518,4 +609,19 @@ function ENT:Helper_Attack(victim,delay,sequence,damage,damageradius,hitsound)
 	end
 end
 
-scripted_ents.Register( ENT, "npc_roach_iv04_tyrant_mrx")
+function ENT:CollisionBounce(radius,force) -- Internal use only, for moving players out of the way.
+   for k, target in pairs(ents.FindInSphere(self:GetPos(),radius)) do
+      if IsValid(target) then
+         local tpos = target:LocalToWorld(target:OBBCenter())
+         local dir = (tpos - self:GetPos()):GetNormal()
+         local phys = target:GetPhysicsObject()
+
+         if target:IsPlayer() then
+            local push = dir * force
+            local vel = target:GetVelocity() + push
+			vel.z = 1
+            target:SetVelocity(vel)
+         end
+      end
+   end
+end
