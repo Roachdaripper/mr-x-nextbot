@@ -159,6 +159,7 @@ function ENT:CustomChaseTarget(target)
 	self:Taunt()
 	self:Flinch()
 	self:CommitDie()
+	self:DirectPoseParametersAt(target:GetPos(), "aim_pitch", "aim_yaw")
 	
 	if self.CanOpenDoor then
 		local doorseq,doordur = self:LookupSequence("9200")
@@ -192,21 +193,36 @@ function ENT:CustomChaseTarget(target)
 				end
 				-- find ourselves to know which side of the door we're on
 				if (fwd:DistToSqr(pos) < bck:DistToSqr(pos)) or (bck:DistToSqr(pos) < fwd:DistToSqr(pos)) then
+					local fuck_double_doors1 = door:GetKeyValues()
+					local fuck_double_doors2 = nil
+					if isstring(fuck_double_doors1.slavename) and fuck_double_doors1.slavename != "" then
+						-- print("yes")
+						fuck_double_doors2 = ents.FindByName(fuck_double_doors1.slavename)[1]
+					-- else
+						-- print("no")
+					end
+					
 					self:SetNotSolid(true)
 					door:SetNotSolid(true)
+					fuck_double_doors2:SetNotSolid(true)
 					
 					door:Fire("setspeed",500)
+					fuck_double_doors2:Fire("setspeed",500)
 					timer.Simple(0.5,function()
 						if !IsValid(self) then return end
 						self:EmitSound("doors/vent_open3.wav",511,math.random(50,80))
 						door:Fire("openawayfrom",self:GetName())
+						fuck_double_doors2:Fire("openawayfrom",self:GetName())
 					end)
 					timer.Simple(doordur,function()
 						if !IsValid(self) then return end
 						door:Fire("setspeed",100)
 						door:Fire("close")
+						fuck_double_doors2:Fire("setspeed",100)
+						fuck_double_doors2:Fire("close")
 						timer.Simple(0.2,function()
 							door:SetNotSolid(false)
+							fuck_double_doors2:SetNotSolid(false)
 							if !IsValid(self) then return end
 							self.CanOpenDoor = true
 							self.CanAttack = true
@@ -780,6 +796,10 @@ function ENT:PlaySequenceAndSetPos(anim)
 				
 		local pos = self:GetPos()
 		local gd_prev = 0
+		local cbmin_prev = Vector(-14,-20,0)
+		local cbmax_prev = Vector(15,20,93)
+		
+		self:SetCollisionBounds(Vector(-1,-1,0), Vector(1,1,1))
 		
 		for i=1,dur*100 do 
 			timer.Simple(0.01*i,function()
@@ -789,11 +809,32 @@ function ENT:PlaySequenceAndSetPos(anim)
 				gd_prev = gd_cur
 
 				if (not ga2) or (gb2 == Vector(0,0,0)) or (gd_cur==0) or (!util.IsInWorld(self:LocalToWorld(gb2))) then return end
-				self:SetPos(self:LocalToWorld(gb2))
-				self:SetAngles(self:LocalToWorldAngles(gc2))
+				
+				local tr=util.TraceLine({
+				    start=self:LocalToWorld(gb2)+Vector(0,0,10),
+				    endpos=self:LocalToWorld(gb2),
+				    filter=self
+				})
+				
+				self:SetPos(tr.HitPos)
+				-- self:SetAngles(self:LocalToWorldAngles(gc2))
 			end)
 		end
 	coroutine.wait(dur)
+	self:SetCollisionBounds(cbmin_prev, cbmax_prev)
 	self:ResetSequence(self.WalkAnim)
 	self.loco:SetDesiredSpeed(self.Speed)
+end
+function ENT:DirectPoseParametersAt(pos, pitch, yaw, center)
+	if isentity(pos) then
+		return self:DirectPoseParametersAt(pos:WorldSpaceCenter(), pitch, yaw)
+	elseif isvector(pos) then
+		center = center or self:WorldSpaceCenter()
+		local angle = (pos - center):Angle()
+		self:SetPoseParameter(pitch, math.AngleDifference(angle.p, self:GetAngles().p))
+		self:SetPoseParameter(yaw, math.AngleDifference(angle.y, self:GetAngles().y))
+	else
+		self:SetPoseParameter(pitch, 0)
+		self:SetPoseParameter(yaw, 0)
+	end
 end
