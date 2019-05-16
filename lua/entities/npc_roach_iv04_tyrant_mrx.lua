@@ -48,11 +48,15 @@ function ENT:CustomInit()
 	self.IsShocked = false
 	self.IsDead = false
 	self.IsPlayingGesture = false
+	self.CanOpenDoor = true
+	
+	self.Grab_IsGrabbing = false
+	self.Grab_DidSucceed = false -- Did we succeed in grabbing a bitch?
 
 	for i=3,117 do self:ManipulateBoneJiggle(i, 1) end
 	
 	self:SetCollisionBounds(Vector(-14,-20,0), Vector(15,20,93))
-	if SERVER then self:SetSolidMask(MASK_NPCSOLID) end
+	if SERVER then self:SetSolidMask(MASK_NPCSOLID)self:SetName("nextbot_mrx"..self:EntIndex()) end
 end
 function ENT:OnSpawn()
 	local tr = util.TraceLine({
@@ -129,30 +133,107 @@ function ENT:OnContact(ent)
 end
 
 function ENT:OnLeaveGround()
+	if not self.CanOpenDoor then return end
 	local seqid,dur = self:LookupSequence("1500")
 	self:ResetSequence(seqid)
 end
 function ENT:OnLandOnGround()
-	if self:GetSequence() == "1500" then
+	if not self.CanOpenDoor then return end
+	if self:GetSequence() == self:LookupSequence("1500") then
 		self.CanAttack = false
 		self.loco:SetDesiredSpeed(0)
 		self:EmitSound("re2/em6200/land.mp3",511,100)
+		
+		local seqid,dur = self:LookupSequence("1750")
+		self:ResetSequence(seqid)
+		
+		timer.Simple(dur,function()
+			if !IsValid(self) then return end
+			self.loco:SetDesiredSpeed(self.Speed)
+			self:ResetSequence(self.WalkAnim)
+			self.CanAttack = true
+		end)
 	end
-	
-	local seqid,dur = self:LookupSequence("1750")
-	self:ResetSequence(seqid)
-	
-	timer.Simple(dur,function()
-		if !IsValid(self) then return end
-		self.loco:SetDesiredSpeed(self.Speed)
-		self:ResetSequence(self.WalkAnim)
-		self.CanAttack = true
-	end)
 end
 function ENT:CustomChaseTarget(target)
 	self:Taunt()
 	self:Flinch()
 	self:CommitDie()
+	
+	if self.CanOpenDoor then
+		local doorseq,doordur = self:LookupSequence("9200")
+		for k, door in pairs(ents.FindInSphere(self:GetPos(),64)) do
+		if IsValid(door) and door:GetClass() == "prop_door_rotating" then
+			self.CanOpenDoor = false
+			self.CanAttack = false
+			self.CanTaunt = false
+			self.CanFlinch = false
+			self:SetNotSolid(true)
+			door:SetNotSolid(true)
+				-- find ourselves to know which side of the door we're on
+				local fwd = door:GetPos()+door:GetForward()*5
+				local bck = door:GetPos()-door:GetForward()*5
+				local pos = self:GetPos()
+				
+				if fwd:DistToSqr(pos) < bck:DistToSqr(pos) then -- entered from forward
+					self:SetNotSolid(true)
+					door:SetNotSolid(true)
+					self:SetPos(door:GetPos()+(door:GetForward()*80)+(door:GetRight()*-32))
+					local ang = door:GetAngles()
+					ang:RotateAroundAxis(Vector(0,0,1),180)
+					self:SetAngles(ang)
+				elseif bck:DistToSqr(pos) < fwd:DistToSqr(pos) then -- entered from backward
+					self:SetNotSolid(true)
+					door:SetNotSolid(true)
+					self:SetPos(door:GetPos()+(door:GetForward()*-80)+(door:GetRight()*-12))
+					local a = (door:GetAngles())
+					a:Normalize()
+					self:SetAngles(a)
+				end
+				-- find ourselves to know which side of the door we're on
+				if (fwd:DistToSqr(pos) < bck:DistToSqr(pos)) or (bck:DistToSqr(pos) < fwd:DistToSqr(pos)) then
+					self:SetNotSolid(true)
+					door:SetNotSolid(true)
+					
+					door:Fire("setspeed",500)
+					timer.Simple(0.5,function()
+						if !IsValid(self) then return end
+						self:EmitSound("doors/vent_open3.wav",511,math.random(50,80))
+						door:Fire("openawayfrom",self:GetName())
+					end)
+					timer.Simple(doordur,function()
+						if !IsValid(self) then return end
+						door:Fire("setspeed",100)
+						door:Fire("close")
+						timer.Simple(0.2,function()
+							door:SetNotSolid(false)
+							if !IsValid(self) then return end
+							self.CanOpenDoor = true
+							self.CanAttack = true
+							self.CanFlinch = false
+							self:SetNotSolid(false)
+						end)
+					end)
+					self:snd("re2/em6200/step"..self:rnd(5)..".mp3",6/30)
+					self:snd("re2/em6200/step"..self:rnd(5)..".mp3",13/30)
+					self:snd("re2/em6200/step"..self:rnd(5)..".mp3",20/30)
+					self:snd("re2/em6200/step"..self:rnd(5)..".mp3",53/30)
+					self:snd("re2/em6200/step"..self:rnd(5)..".mp3",70/30)
+					self:snd("re2/em6200/step"..self:rnd(5)..".mp3",83/30)
+					self:PlaySequenceAndSetPos("9200")
+				else
+					timer.Simple(0.1,function()
+						door:SetNotSolid(false)
+						if !IsValid(self) then return end
+						self.CanOpenDoor = true
+						self.CanAttack = true
+						self.CanFlinch = false
+						self:SetNotSolid(false)
+					end)
+				end
+		end
+		end
+	end
 	
 	local v = target
 	
@@ -163,7 +244,7 @@ function ENT:CustomChaseTarget(target)
 		end
 		
 		-- function ENT:Helper_Attack(victim,delay,sequence,damage,damageradius,hitsound)
-		local rm = math.random(1,4)
+		local rm = math.random(1,5)
 		if rm == 1 then
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0.1)
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0.5)
@@ -193,6 +274,79 @@ function ENT:CustomChaseTarget(target)
 			
 			self:Helper_Attack(v,0.6,"3003",30,96,"re2/em6200/attack_hit"..self:rnd(5)..".mp3")
 			if self:GetTarget():Health() <= 0 then self:SetTarget(nil)self:CustomIdle() end
+		elseif rm == 5 then -- grab
+			self.Grab_IsGrabbing = true
+			
+			self:SetSequence("ragdoll_grabA")
+				self:SetCycle(0)
+				self:SetPlaybackRate(1)
+				self:ResetSequenceInfo()
+			self.loco:SetDesiredSpeed(0)
+			
+			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0)
+			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",13/30)
+			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",13/30)
+			timer.Simple(15/30, function()
+				if self:GetRangeTo(v:GetPos()) < 100 then
+					self.Grab_DidSucceed = true
+					
+					self.attachment=ents.Create("obj_ragdoll_attachment_body_mrx")
+					self.attachment.model = v:GetModel()
+					self.attachment:SetPos(self:GetPos())
+					self.attachment:SetParent(self)
+					self.attachment:Spawn()
+					self:DeleteOnRemove(self.attachment)
+					
+					if v:IsPlayer() then
+						v:SetPos(self:GetPos() + (self:GetForward()*60) + Vector(0,0,60))
+						v:KillSilent()
+					else
+						SafeRemoveEntity(v)
+					end
+				end
+			end)
+			coroutine.wait(17/30)
+			if self.Grab_DidSucceed then
+				self:snd("physics/body/body_medium_impact_soft"..math.random(5,7)..".wav",0)
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",3/30)
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",8/30)
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",15/30)
+				self:PlaySequenceAndWait("ragdoll_grabB")
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",8/30)
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",13/30)
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",19/30)
+				timer.Simple(27/30,function()
+					self:EmitSound("physics/body/body_medium_break"..math.random(2,3)..".wav",511,100)
+					ParticleEffectAttach("blood_advisor_puncture",PATTACH_POINT_FOLLOW,self,3)
+					for i=1,math.random(5,10) do ParticleEffectAttach("blood_impact_red_01",PATTACH_POINT_FOLLOW,self,3) end
+				end)
+				timer.Simple(120/30,function()
+					self.doll=ents.Create("prop_ragdoll")
+					self.doll:SetModel(self.attachment.model)
+					self.doll:SetPos(self.attachment.doll:GetPos())
+					
+					local ang = self:GetAngles()
+					local fuckyou = ang:RotateAroundAxis(Vector(0,0,1),180)
+					self.doll:SetAngles(ang)
+					
+					self.doll:Spawn()
+					self.doll:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
+					self.doll:Fire("fadeandremove",1,10)
+					
+					SafeRemoveEntity(self.attachment)
+				end)
+				self:PlaySequenceAndWait("ragdoll_grabC")
+				
+				self.Grab_DidSucceed = false
+				self.Grab_IsGrabbing = false
+				self:CustomIdle()
+			else
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",6/30)
+				coroutine.wait(1)
+				self.Grab_IsGrabbing = false
+				self:ResetSequence(self.WalkAnim)
+				self.loco:SetDesiredSpeed(self.Speed)
+			end
 		end
 	end
 end
@@ -205,7 +359,7 @@ function ENT:OnKilled(dmginfo)
 	SafeRemoveEntity(self)
 end
 function ENT:OnInjured(dmginfo)
-	if self:GetSequence() == "2201" then dmginfo:ScaleDamage(0) return end
+	if self:GetSequence() == self:LookupSequence("2201") then dmginfo:ScaleDamage(0) return end
 	-- Don't react to damage at all if we're down.
 	
 		if IsValid(dmginfo:GetAttacker()) and dmginfo:GetAttacker():IsPlayer() then
@@ -251,7 +405,7 @@ function ENT:OnInjured(dmginfo)
 			end
 			self.CanCommitDie = true
 		else
-			if !self.PissedOff and self:GetSequence() == "0200" then
+			if !self.PissedOff and self:GetSequence() == self:LookupSequence("0200") then
 				self:DoChangeRun()
 				self.PissedOff = true
 			end
@@ -433,7 +587,7 @@ function ENT:Initialize()
 end
 
 function ENT:BodyUpdate()
-	if self:GetSequence() == "0200" or self:GetSequence() == "0500" then
+	if self:GetSequence() == self:LookupSequence("0200") or self:GetSequence() == self:LookupSequence("0500") then
 		self:BodyMoveXY()
 	else
 		self:FrameAdvance()
@@ -468,21 +622,11 @@ function ENT:SetTarget(ent)if self:AcceptTarget(ent) then self.Target = ent	retu
 AccessorFunc(ENT, "m_bTargetLocked", "TargetLocked", FORCE_BOOL) 
 -- Stops the Zombie from retargetting and keeps this target while it is valid and targetable
 function ENT:SetNextRetarget(time) self.NextRetarget = CurTime() + time end -- Sets the next time the Zombie will repath to its target
-function ENT:Retarget() -- Causes a retarget
-	if self:GetTargetLocked() and validtarget(self.Target) then return end
-
-	local target, dist = self:SelectTarget()
-	if target ~= self.Target then
-		self:ForceRepath()
-	end
-	self.Target = target
-	self:SetNextRetarget(self:CalculateNextRetarget(target, dist))
-end
 function ENT:ForceRepath() self.NextRepath = 0 end
 
 function ENT:HaveTarget()
 	if (self:GetTarget() and IsValid(self:GetTarget())) then 
-		if (self:GetRangeTo(self:GetTarget():GetPos()) > self.LoseTargetDist or 99000) then 
+		if (self:GetRangeTo(self:GetTarget():GetPos()) > self.LoseTargetDist or 700) then 
 			return self:FindTarget()
 		end 
 		return true 
@@ -491,7 +635,7 @@ function ENT:HaveTarget()
 	end 
 end
 function ENT:FindTarget()
-	local _ents = ents.FindInSphere(self:GetPos(), self.SearchRadius or 9000)
+	local _ents = ents.FindInSphere(self:GetPos(), self.SearchRadius or 700)
 		for k,v in pairs(_ents) do 
 			if (v:IsPlayer() and v:Alive()) and self:AcceptTarget(v) then 
 				self:SetTarget(v)
@@ -516,7 +660,6 @@ function ENT:SpawnIn()
 	self:OnSpawn()
 end
 function ENT:RunBehaviour()
-	self:Retarget()
 	self:SpawnIn()
 	while (true) do
 		self:CustomRunBehaviour()
@@ -624,4 +767,33 @@ function ENT:CollisionBounce(radius,force) -- Internal use only, for moving play
          end
       end
    end
+end
+function ENT:PlaySequenceAndSetPos(anim)
+	self.loco:SetDesiredSpeed(0)
+	self:SetSequence(anim)
+	self:SetCycle(0)
+	self:SetPlaybackRate(1)
+	self:ResetSequenceInfo()
+		local seq,dur = self:LookupSequence(anim)
+		local ga,gb,gc = self:GetSequenceMovement(seq,0,1)
+		if not ga then print("ga failed") return end -- The animation has no locomotion or it's invalid or we failed in some other way.
+				
+		local pos = self:GetPos()
+		local gd_prev = 0
+		
+		for i=1,dur*100 do 
+			timer.Simple(0.01*i,function()
+				if !IsValid(self) then return end
+				local gd_cur = self:GetCycle()
+				local ga2,gb2,gc2 = self:GetSequenceMovement(seq,gd_prev,gd_cur)
+				gd_prev = gd_cur
+
+				if (not ga2) or (gb2 == Vector(0,0,0)) or (gd_cur==0) or (!util.IsInWorld(self:LocalToWorld(gb2))) then return end
+				self:SetPos(self:LocalToWorld(gb2))
+				self:SetAngles(self:LocalToWorldAngles(gc2))
+			end)
+		end
+	coroutine.wait(dur)
+	self:ResetSequence(self.WalkAnim)
+	self.loco:SetDesiredSpeed(self.Speed)
 end
