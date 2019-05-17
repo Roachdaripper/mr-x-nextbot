@@ -232,11 +232,8 @@ function ENT:CustomChaseTarget(target)
 							timer.Simple(1,function()
 								door:SetNotSolid(false)
 								fuck_double_doors2:SetNotSolid(false)
-								timer.Simple(100000000,function()
-									if !IsValid(self) then return end
-									self.CanOpenDoor = true
-								end)
 								if !IsValid(self) then return end
+								self.CanOpenDoor = true
 								self.CanAttack = true
 								self.CanFlinch = false
 								self:SetNotSolid(false)
@@ -276,10 +273,11 @@ function ENT:CustomChaseTarget(target)
 						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",83/30)
 						self:PlaySequenceAndSetPos("9200")
 					end
+					break
 				else
 					timer.Simple(1,function()
 						door:SetNotSolid(false)
-						timer.Simple(1000000,function()
+						timer.Simple(1,function()
 							if !IsValid(self) then return end
 							self.CanOpenDoor = true
 						end)
@@ -288,6 +286,7 @@ function ENT:CustomChaseTarget(target)
 						self.CanFlinch = false
 						self:SetNotSolid(false)
 					end)
+					break
 				end
 		end
 		end
