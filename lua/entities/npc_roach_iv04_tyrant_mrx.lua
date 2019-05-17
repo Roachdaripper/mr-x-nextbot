@@ -162,8 +162,9 @@ function ENT:CustomChaseTarget(target)
 	self:Flinch()
 	self:CommitDie()
 	
-	if self.CanOpenDoor then
+	if self.CanOpenDoor == true then
 		local doorseq,doordur = self:LookupSequence("9200")
+		local doorseq2,doordur2 = self:LookupSequence("9201")
 		for k, door in pairs(ents.FindInSphere(self:GetPos(),64)) do
 		if IsValid(door) and door:GetClass() == "prop_door_rotating" then
 			self.CanOpenDoor = false
@@ -176,73 +177,113 @@ function ENT:CustomChaseTarget(target)
 				local fwd = door:GetPos()+door:GetForward()*5
 				local bck = door:GetPos()-door:GetForward()*5
 				local pos = self:GetPos()
+				local fuck_double_doors1 = door:GetKeyValues()
+				local fuck_double_doors2 = nil
+				if isstring(fuck_double_doors1.slavename) and fuck_double_doors1.slavename != "" then
+					fuck_double_doors2 = ents.FindByName(fuck_double_doors1.slavename)[1]
+				end
 				
 				if fwd:DistToSqr(pos) < bck:DistToSqr(pos) then -- entered from forward
 					self:SetNotSolid(true)
 					door:SetNotSolid(true)
+				if isentity(fuck_double_doors2) then
+					self:SetPos(door:GetPos()+(door:GetForward()*50)+(door:GetRight()*-50))
+				else
 					self:SetPos(door:GetPos()+(door:GetForward()*80)+(door:GetRight()*-32))
+				end
 					local ang = door:GetAngles()
 					ang:RotateAroundAxis(Vector(0,0,1),180)
 					self:SetAngles(ang)
 				elseif bck:DistToSqr(pos) < fwd:DistToSqr(pos) then -- entered from backward
 					self:SetNotSolid(true)
 					door:SetNotSolid(true)
+				if isentity(fuck_double_doors2) then
+					self:SetPos(door:GetPos()+(door:GetForward()*-50)+(door:GetRight()*-50))
+				else
 					self:SetPos(door:GetPos()+(door:GetForward()*-80)+(door:GetRight()*-12))
+				end
 					local a = (door:GetAngles())
 					a:Normalize()
 					self:SetAngles(a)
 				end
 				-- find ourselves to know which side of the door we're on
 				if (fwd:DistToSqr(pos) < bck:DistToSqr(pos)) or (bck:DistToSqr(pos) < fwd:DistToSqr(pos)) then
-					local fuck_double_doors1 = door:GetKeyValues()
-					local fuck_double_doors2 = nil
-					if isstring(fuck_double_doors1.slavename) and fuck_double_doors1.slavename != "" then
-						-- print("yes")
-						fuck_double_doors2 = ents.FindByName(fuck_double_doors1.slavename)[1]
-					-- else
-						-- print("no")
-					end
 					
 					self:SetNotSolid(true)
 					door:SetNotSolid(true)
-					fuck_double_doors2:SetNotSolid(true)
-					
 					door:Fire("setspeed",500)
-					fuck_double_doors2:Fire("setspeed",500)
-					timer.Simple(0.5,function()
-						if !IsValid(self) then return end
-						self:EmitSound("doors/vent_open3.wav",511,math.random(50,80))
-						door:Fire("openawayfrom",self:GetName())
-						fuck_double_doors2:Fire("openawayfrom",self:GetName())
-					end)
-					timer.Simple(doordur,function()
-						if !IsValid(self) then return end
-						door:Fire("setspeed",100)
-						door:Fire("close")
-						fuck_double_doors2:Fire("setspeed",100)
-						fuck_double_doors2:Fire("close")
-						timer.Simple(0.2,function()
-							door:SetNotSolid(false)
-							fuck_double_doors2:SetNotSolid(false)
+					
+					if isentity(fuck_double_doors2) then
+						fuck_double_doors2:SetNotSolid(true)
+						fuck_double_doors2:Fire("setspeed",500)
+						
+						timer.Simple(7/30,function()
+							if !IsValid(self) then return end
+							self:EmitSound("doors/vent_open3.wav",511,math.random(50,80))
+							door:Fire("openawayfrom",self:GetName())
+							fuck_double_doors2:Fire("openawayfrom",self:GetName())
+						end)
+						timer.Simple(doordur2,function()
+							if !IsValid(self) then return end
+							door:Fire("setspeed",100)
+							door:Fire("close")
+							fuck_double_doors2:Fire("setspeed",100)
+							fuck_double_doors2:Fire("close")
+							timer.Simple(1,function()
+								door:SetNotSolid(false)
+								fuck_double_doors2:SetNotSolid(false)
+								timer.Simple(100000000,function()
+									if !IsValid(self) then return end
+									self.CanOpenDoor = true
+								end)
+								if !IsValid(self) then return end
+								self.CanAttack = true
+								self.CanFlinch = false
+								self:SetNotSolid(false)
+							end)
+						end)
+					
+						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",7/30)
+						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",13/30)
+						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",57/30)
+						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",71/30)
+						self:PlaySequenceAndSetPos("9201")
+					else
+						timer.Simple(0.5,function()
+							if !IsValid(self) then return end
+							self:EmitSound("doors/vent_open3.wav",511,math.random(50,80))
+							door:Fire("openawayfrom",self:GetName())
+						end)
+						timer.Simple(doordur,function()
+							if !IsValid(self) then return end
+							door:Fire("setspeed",100)
+							door:Fire("close")
+							timer.Simple(0.2,function()
+								door:SetNotSolid(false)
+								if !IsValid(self) then return end
+								self.CanOpenDoor = true
+								self.CanAttack = true
+								self.CanFlinch = false
+								self:SetNotSolid(false)
+							end)
+						end)
+					
+						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",6/30)
+						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",13/30)
+						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",20/30)
+						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",53/30)
+						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",70/30)
+						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",83/30)
+						self:PlaySequenceAndSetPos("9200")
+					end
+				else
+					timer.Simple(1,function()
+						door:SetNotSolid(false)
+						timer.Simple(1000000,function()
 							if !IsValid(self) then return end
 							self.CanOpenDoor = true
-							self.CanAttack = true
-							self.CanFlinch = false
-							self:SetNotSolid(false)
 						end)
-					end)
-					self:snd("re2/em6200/step"..self:rnd(5)..".mp3",6/30)
-					self:snd("re2/em6200/step"..self:rnd(5)..".mp3",13/30)
-					self:snd("re2/em6200/step"..self:rnd(5)..".mp3",20/30)
-					self:snd("re2/em6200/step"..self:rnd(5)..".mp3",53/30)
-					self:snd("re2/em6200/step"..self:rnd(5)..".mp3",70/30)
-					self:snd("re2/em6200/step"..self:rnd(5)..".mp3",83/30)
-					self:PlaySequenceAndSetPos("9200")
-				else
-					timer.Simple(0.1,function()
-						door:SetNotSolid(false)
 						if !IsValid(self) then return end
-						self.CanOpenDoor = true
 						self.CanAttack = true
 						self.CanFlinch = false
 						self:SetNotSolid(false)
@@ -930,7 +971,8 @@ function ENT:CollisionBounce(radius,force) -- Internal use only, for moving play
       end
    end
 end
-function ENT:PlaySequenceAndSetPos(anim)
+function ENT:PlaySequenceAndSetPos(anim,mul)
+	mul = mul or 1
 	self.loco:SetDesiredSpeed(0)
 	self:SetSequence(anim)
 	self:SetCycle(0)
@@ -957,8 +999,8 @@ function ENT:PlaySequenceAndSetPos(anim)
 				if (not ga2) or (gb2 == Vector(0,0,0)) or (gd_cur==0) or (!util.IsInWorld(self:LocalToWorld(gb2))) then return end
 				
 				local tr=util.TraceLine({
-				    start=self:LocalToWorld(gb2)+Vector(0,0,10),
-				    endpos=self:LocalToWorld(gb2),
+				    start=self:LocalToWorld(gb2*mul)+Vector(0,0,10),
+				    endpos=self:LocalToWorld(gb2*mul),
 				    filter=self
 				})
 				
