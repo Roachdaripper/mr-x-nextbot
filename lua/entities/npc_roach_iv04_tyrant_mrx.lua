@@ -145,7 +145,9 @@ function ENT:OnLandOnGround()
 		self:EmitSound("re2/em6200/land.mp3",511,100)
 		
 		local seqid,dur = self:LookupSequence("1750")
-		self:ResetSequence(seqid)
+		self:SetSequence(seqid)
+		self:SetCycle(0)
+		self:ResetSequenceInfo()
 		
 		timer.Simple(dur,function()
 			if !IsValid(self) then return end
@@ -336,7 +338,10 @@ function ENT:CustomChaseTarget(target)
 					for i=1,math.random(5,10) do ParticleEffectAttach("blood_impact_red_01",PATTACH_POINT_FOLLOW,self,3) end
 					self.attachment.CanDetach = true
 					self.attachment.doll:Fire("fadeandremove",1,10)
-					if (v:IsPlayer() and !v:Alive()) then v:ScreenFade(SCREENFADE.IN,Color(255,0,0,255),0.3,0.2) end
+					if (v:IsPlayer() and !v:Alive()) then 
+						v:ScreenFade(SCREENFADE.IN,Color(255,0,0,255),0.3,0.2) 
+						v:EmitSound("player/pl_pain"..math.random(5,7)..".wav",511,100)
+					end
 				end)
 				self:PlaySequenceAndWait("ragdoll_grabC")
 				if self:ShouldTurn() then
@@ -358,6 +363,7 @@ function ENT:CustomChaseTarget(target)
 end
 function ENT:CustomIdle()
 	self:ResetSequence("0000")
+	self:DirectPoseParametersAt(nil, "aim_pitch", "aim_yaw")
 end
 function ENT:CustomRunBehaviour()end
 function ENT:OnKilled(dmginfo)
@@ -431,6 +437,7 @@ end
 function ENT:Taunt()
 	if not self.CanTaunt then return end
 	
+	self:DirectPoseParametersAt(nil, "aim_pitch", "aim_yaw")
 	self.CanAttack = false
 	self.CanTaunt = false
 	
@@ -715,7 +722,7 @@ function ENT:ChaseTarget(options)
 			return "stuck"
 		end	
 		
-		self:DirectPoseParametersAt(self:GetTarget():GetPos(), "aim_pitch", "aim_yaw")
+		if self.CanAttack then self:DirectPoseParametersAt(self:GetTarget():GetPos(), "aim_pitch", "aim_yaw")end
 		if IsValid(navmesh.GetNearestNavArea(self:GetPos())) then
 			local pos = self:GetPos()
 			if table.Count(navmesh.GetNearestNavArea(pos):GetLadders()) > 0 then
@@ -746,15 +753,57 @@ function ENT:ClimbLadder(ladder)
     local count = 0
 	local position = self:GetPos()
     pos = ladder:GetTop()
-    vector = Vector(0,0,1).z
+    -- vector = Vector(0,0,25).z
+    vector = Vector(0,0,8).z
 	
 	self:SetPos(position+self:GetForward()*20)
 		for i=1,1000 do self.loco:FaceTowards(ladder:GetPosAtHeight(self:GetPos().z)) end
-		if IsValid(self) then self:DS_PlaySequenceAndWait(self.Animations.Ladder.Mount) end
-		self:CustomOnClimbLadder()
-		if IsValid(self) and self.IsClimbingLadder then self:CustomAnimationClimbLadder()end
+		
+		local climb_left = false
+		local climb_right = false
+		
+		if IsValid(self) then 
+			climb_left = true
+			self.IsClimbingLadder = true
+			self.CanAttack = false
+			for i=1,5 do
+				timer.Simple(0.1*i,function()
+					self.loco:FaceTowards(ladder:GetPosAtHeight(self:GetPos().z))
+					self:SetPos(ladder:GetPosAtHeight(vector +self:GetPos().z) + (self:GetForward()*-25))
+				end)
+			end
+			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",12/30)
+			self:snd("re2/em6200/climb"..self:rnd(2)..".mp3",25/30)
+			self:snd("re2/em6200/climb"..self:rnd(2)..".mp3",45/30)
+			self:PlaySequenceAndWait("ladder_start")
+		end
+		if IsValid(self) and self.IsClimbingLadder then 
+			if climb_left then
+				climb_left = false
+				climb_right = true
+				for i=1,5 do
+					timer.Simple(0.1*i,function()
+						self.loco:FaceTowards(ladder:GetPosAtHeight(self:GetPos().z))
+						self:SetPos(ladder:GetPosAtHeight(vector +self:GetPos().z) + (self:GetForward()*-25))
+					end)
+				end
+				self:snd("re2/em6200/climb"..self:rnd(2)..".mp3",19/30)
+				self:PlaySequenceAndWait("ladder_l")
+			elseif climb_right then
+				climb_left = true
+				climb_right = false
+				for i=1,5 do
+					timer.Simple(0.1*i,function()
+						self.loco:FaceTowards(ladder:GetPosAtHeight(self:GetPos().z))
+						self:SetPos(ladder:GetPosAtHeight(vector +self:GetPos().z) + (self:GetForward()*-25))
+					end)
+				end
+				self:snd("re2/em6200/climb"..self:rnd(2)..".mp3",15/30)
+				self:PlaySequenceAndWait("ladder_r")
+			end
+		end
 		local startpos = self:GetPos()
-		while (self:GetPos():Distance(pos) > 20) do
+		while (self:GetPos():Distance(pos) > 100) do
 			if !self.IsClimbingLadder then break end
 			if count > 3 then
 				if !self.IsClimbingLadder then break end
@@ -762,14 +811,63 @@ function ENT:ClimbLadder(ladder)
 					return "failed"
 				end
 			end
-			self.loco:FaceTowards(ladder:GetPosAtHeight(self:GetPos().z))
-			self:SetPos(ladder:GetPosAtHeight(vector +self:GetPos().z) + (self:GetForward()*-15))
-			count = count + 1
-			if self.IsClimbingLadder then coroutine.wait(0.01) end
+			-- self:SetPos(ladder:GetPosAtHeight(vector +self:GetPos().z) + (self:GetForward()*-15))
+			if IsValid(self) and self.IsClimbingLadder then 
+				if climb_left then
+					climb_left = false
+					climb_right = true
+					for i=1,5 do
+						timer.Simple(0.1*i,function()
+							self.loco:FaceTowards(ladder:GetPosAtHeight(self:GetPos().z))
+							self:SetPos(ladder:GetPosAtHeight(vector +self:GetPos().z) + (self:GetForward()*-25))
+						end)
+					end
+					self:snd("re2/em6200/climb"..self:rnd(2)..".mp3",19/30)
+					self:PlaySequenceAndWait("ladder_l")
+					count = count + 1
+				elseif climb_right then
+					climb_left = true
+					climb_right = false
+					for i=1,5 do -- Move 25 units up every time we climb
+						timer.Simple(0.1*i,function()
+							self.loco:FaceTowards(ladder:GetPosAtHeight(self:GetPos().z))
+							self:SetPos(ladder:GetPosAtHeight(vector +self:GetPos().z) + (self:GetForward()*-25))
+						end)
+					end
+					self:snd("re2/em6200/climb"..self:rnd(2)..".mp3",15/30)
+					self:PlaySequenceAndWait("ladder_r")
+					count = count + 1
+				end
+			end
 		end
 		if !self.IsClimbingLadder then return end
-		if IsValid(self) then self:CustomAnimationEndLadder() end
-    self:SetPos(pos)
+		if IsValid(self) then 
+			if climb_left then
+				climb_left = false
+				climb_right = false
+				self:SetPos(pos)
+				self:snd("re2/em6200/climb"..self:rnd(2)..".mp3",13/30)
+				self:snd("re2/em6200/land.mp3",31/30)
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",32/30)
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",34/30)
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",49/30)
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",60/30)
+				self:PlaySequenceAndWait("ladder_finish_l")
+			elseif climb_right then
+				climb_left = false
+				climb_right = false
+				self:SetPos(pos)
+				self:snd("re2/em6200/climb"..self:rnd(2)..".mp3",13/30)
+				self:snd("re2/em6200/land.mp3",31/30)
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",32/30)
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",34/30)
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",49/30)
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",60/30)
+				self:PlaySequenceAndWait("ladder_finish_r")
+			end
+			self.IsClimbingLadder = false
+			self.CanAttack = true
+		end
 end
 
 
