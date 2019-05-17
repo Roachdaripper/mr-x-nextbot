@@ -16,7 +16,7 @@ list.Set("NPC", "npc_roach_iv04_tyrant_mrx", {
 if CLIENT then	language.Add("npc_roach_iv04_tyrant_mrx","Mr. X")end
 
 -- Essentials --
-ENT.Model = "models/roach/re2/tyrant_v5.mdl"	-- Our model.
+ENT.Model = "models/roach/re2/tyrant_v6.mdl"	-- Our model.
 ENT.health = 500000								-- Our health.
 ENT.Speed = 105									-- How fast we move.
 ENT.WalkAnim = "0200"
@@ -159,7 +159,6 @@ function ENT:CustomChaseTarget(target)
 	self:Taunt()
 	self:Flinch()
 	self:CommitDie()
-	self:DirectPoseParametersAt(target:GetPos(), "aim_pitch", "aim_yaw")
 	
 	if self.CanOpenDoor then
 		local doorseq,doordur = self:LookupSequence("9200")
@@ -335,23 +334,14 @@ function ENT:CustomChaseTarget(target)
 					self:EmitSound("physics/body/body_medium_break"..math.random(2,3)..".wav",511,100)
 					ParticleEffectAttach("blood_advisor_puncture",PATTACH_POINT_FOLLOW,self,3)
 					for i=1,math.random(5,10) do ParticleEffectAttach("blood_impact_red_01",PATTACH_POINT_FOLLOW,self,3) end
-				end)
-				timer.Simple(120/30,function()
-					self.doll=ents.Create("prop_ragdoll")
-					self.doll:SetModel(self.attachment.model)
-					self.doll:SetPos(self.attachment.doll:GetPos())
-					
-					local ang = self:GetAngles()
-					local fuckyou = ang:RotateAroundAxis(Vector(0,0,1),180)
-					self.doll:SetAngles(ang)
-					
-					self.doll:Spawn()
-					self.doll:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
-					self.doll:Fire("fadeandremove",1,10)
-					
-					SafeRemoveEntity(self.attachment)
+					self.attachment.CanDetach = true
+					self.attachment.doll:Fire("fadeandremove",1,10)
+					if (v:IsPlayer() and !v:Alive()) then v:ScreenFade(SCREENFADE.IN,Color(255,0,0,255),0.3,0.2) end
 				end)
 				self:PlaySequenceAndWait("ragdoll_grabC")
+				if self:ShouldTurn() then
+					self:Turn()
+				end
 				
 				self.Grab_DidSucceed = false
 				self.Grab_IsGrabbing = false
@@ -494,8 +484,9 @@ function ENT:Flinch()
 		self:snd("re2/em6200/step"..self:rnd(5)..".mp3",3.8)
 		
 		self:PlaySequenceAndWait("9050")
-		self:ResetSequence(self.WalkAnim)
-		self.loco:SetDesiredSpeed(self.Speed)
+		if self:ShouldTurn() then
+			self:Turn()
+		end
 		self.CanAttack = true
 	elseif flinch == 2 then
 		self:snd("re2/em6200/foley"..self:rnd(3)..".mp3",0)
@@ -507,8 +498,9 @@ function ENT:Flinch()
 		self:snd("re2/em6200/step"..self:rnd(5)..".mp3",3.7)
 		
 		self:PlaySequenceAndWait("9060")
-		self:ResetSequence(self.WalkAnim)
-		self.loco:SetDesiredSpeed(self.Speed)
+		if self:ShouldTurn() then
+			self:Turn()
+		end
 		self.CanAttack = true
 	elseif flinch == 3 then
 		self:snd("re2/em6200/foley"..self:rnd(3)..".mp3",0)
@@ -520,8 +512,9 @@ function ENT:Flinch()
 		self:snd("re2/em6200/step"..self:rnd(5)..".mp3",3.5)
 		
 		self:PlaySequenceAndWait("9061")
-		self:ResetSequence(self.WalkAnim)
-		self.loco:SetDesiredSpeed(self.Speed)
+		if self:ShouldTurn() then
+			self:Turn()
+		end
 		self.CanAttack = true
 	end
 end
@@ -584,8 +577,9 @@ function ENT:CommitDie()
 	self:PlaySequenceAndWait("2202")
 	
 	self.CanAttack = true
-	self:ResetSequence(self.WalkAnim)
-	self.loco:SetDesiredSpeed(self.Speed)
+	if self:ShouldTurn() then
+		self:Turn()
+	end
 end
 --[[-------------------------------------------------------]]--
 function ENT:Initialize()
@@ -680,8 +674,9 @@ function ENT:RunBehaviour()
 	while (true) do
 		self:CustomRunBehaviour()
 		if (self:HaveTarget()) then 
-			self.loco:SetDesiredSpeed(self.Speed)
-			self:ResetSequence(self.WalkAnim)
+			if self:ShouldTurn() then
+				self:Turn()
+			end
 			self:ChaseTarget()
 		else 
 			self:CustomIdle()
@@ -704,7 +699,7 @@ function ENT:ChaseTarget(options)
 	end
 	if (!path:IsValid()) then return "failed" end
 	while (path:IsValid() and self:HaveTarget()) do
-
+		
 		if (path:GetAge() > 0.1) then	
 			if IsValid(self:GetTarget()) then
 				path:Compute(self, self:GetTarget():GetPos())
@@ -720,12 +715,63 @@ function ENT:ChaseTarget(options)
 			return "stuck"
 		end	
 		
+		self:DirectPoseParametersAt(self:GetTarget():GetPos(), "aim_pitch", "aim_yaw")
+		if IsValid(navmesh.GetNearestNavArea(self:GetPos())) then
+			local pos = self:GetPos()
+			if table.Count(navmesh.GetNearestNavArea(pos):GetLadders()) > 0 then
+				local ladder = navmesh.GetNearestNavArea(pos):GetLadders()[1]
+				if pos:Distance(ladder:GetPosAtHeight(pos.z)) < 50 then
+					if path:GetClosestPosition(ladder:GetPosAtHeight(pos.z)):Distance(ladder:GetPosAtHeight(pos.z)) < 20 then 
+						-- We make sure the path at our height is actually close to the ladder
+						if self:GetPos():Distance(ladder:GetTop()) >= 50 then
+							self:ClimbLadder(ladder)
+								-- There's no real accurate way to do this, we can only assume that if we're close enough
+								-- to the top, then we're already at the top, and don't need to start climbing again.
+						end
+					end
+				end
+			end
+		end
+		
 		self:CustomChaseTarget(self:GetTarget())
 		
 		coroutine.yield()
 	end
 	return "ok"
 end
+function ENT:ClimbLadder(ladder)
+    local pos
+    local vector
+    local direction
+    local count = 0
+	local position = self:GetPos()
+    pos = ladder:GetTop()
+    vector = Vector(0,0,1).z
+	
+	self:SetPos(position+self:GetForward()*20)
+		for i=1,1000 do self.loco:FaceTowards(ladder:GetPosAtHeight(self:GetPos().z)) end
+		if IsValid(self) then self:DS_PlaySequenceAndWait(self.Animations.Ladder.Mount) end
+		self:CustomOnClimbLadder()
+		if IsValid(self) and self.IsClimbingLadder then self:CustomAnimationClimbLadder()end
+		local startpos = self:GetPos()
+		while (self:GetPos():Distance(pos) > 20) do
+			if !self.IsClimbingLadder then break end
+			if count > 3 then
+				if !self.IsClimbingLadder then break end
+				if self:GetPos() == startpos then
+					return "failed"
+				end
+			end
+			self.loco:FaceTowards(ladder:GetPosAtHeight(self:GetPos().z))
+			self:SetPos(ladder:GetPosAtHeight(vector +self:GetPos().z) + (self:GetForward()*-15))
+			count = count + 1
+			if self.IsClimbingLadder then coroutine.wait(0.01) end
+		end
+		if !self.IsClimbingLadder then return end
+		if IsValid(self) then self:CustomAnimationEndLadder() end
+    self:SetPos(pos)
+end
+
 
 -- Helper funcs
 function ENT:Helper_Attack(victim,delay,sequence,damage,damageradius,hitsound)
@@ -763,7 +809,9 @@ function ENT:Helper_Attack(victim,delay,sequence,damage,damageradius,hitsound)
 		end)
 		if sequence != "" then
 			self:PlaySequenceAndWait(sequence)
-			self:ResetSequence(self.WalkAnim)
+			if self:ShouldTurn() then
+				self:Turn()
+			end
 		end
 	end
 end
@@ -821,7 +869,36 @@ function ENT:PlaySequenceAndSetPos(anim)
 			end)
 		end
 	coroutine.wait(dur)
+	if self:ShouldTurn() then
+		self:Turn()
+	end
 	self:SetCollisionBounds(cbmin_prev, cbmax_prev)
+end
+function ENT:PlaySequenceAndSetAngles(anim)
+	self.loco:SetDesiredSpeed(0)
+	self:SetSequence(anim)
+	self:SetCycle(0)
+	self:SetPlaybackRate(1)
+	self:ResetSequenceInfo()
+		local seq,dur = self:LookupSequence(anim)
+		local ga,gb,gc = self:GetSequenceMovement(seq,0,1)
+		if not ga then print("ga failed") return end -- The animation has no locomotion or it's invalid or we failed in some other way.
+				
+		local ang = self:GetAngles()
+		local gd_prev = 0
+		
+		for i=1,dur*100 do 
+			timer.Simple(0.01*i,function()
+				if !IsValid(self) then return end
+				local gd_cur = self:GetCycle()
+				local ga2,gb2,gc2 = self:GetSequenceMovement(seq,gd_prev,gd_cur)
+				gd_prev = gd_cur
+
+				if (not ga2) or (gb2 == Vector(0,0,0)) or (gd_cur==0) or (!util.IsInWorld(self:LocalToWorld(gb2))) then return end
+				self:SetAngles(self:LocalToWorldAngles(gc2))
+			end)
+		end
+	coroutine.wait(dur)
 	self:ResetSequence(self.WalkAnim)
 	self.loco:SetDesiredSpeed(self.Speed)
 end
@@ -836,5 +913,74 @@ function ENT:DirectPoseParametersAt(pos, pitch, yaw, center)
 	else
 		self:SetPoseParameter(pitch, 0)
 		self:SetPoseParameter(yaw, 0)
+	end
+end
+
+function ENT:Turn()
+    if IsValid(self:GetTarget()) then
+            local ang1 = self:GetAngles()
+            local ang2 = self:GetTarget():GetAngles()
+            local pos = self:GetTarget():GetPos()
+            local ydif = math.AngleDifference( ang1.y, ang2.y )
+            local seq
+            if ydif < 0 then ydif = ydif +360 end
+            if ydif <= 45 or ydif >= 315 then
+                local random = math.random(1,2)
+                local seq
+                if random == 1 then
+                    seq = "turn_180left"
+                elseif random == 2 then
+                    seq = "turn_180right"
+                end
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",33/30)
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",50/30)
+                self:PlaySequenceAndSetAngles(seq)
+				self:ResetSequence(self.WalkAnim)
+				self.loco:SetDesiredSpeed(self.Speed)
+            elseif ydif <= 135 and ydif >= 45 then
+                --Left
+                seq = "turn_90left"
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",20/30)
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",33/30)
+                self:PlaySequenceAndSetAngles(seq)
+				self:ResetSequence(self.WalkAnim)
+				self.loco:SetDesiredSpeed(self.Speed)
+            elseif ydif <= 315 and ydif >= 235 then
+                --Right
+                seq = "turn_90right"
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",20/30)
+				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",33/30)
+                self:PlaySequenceAndSetAngles(seq)
+				self:ResetSequence(self.WalkAnim)
+				self.loco:SetDesiredSpeed(self.Speed)
+            end
+    end
+end
+function ENT:ShouldTurn()
+    if IsValid(self:GetTarget()) then
+		local turn = false
+		local ang1 = self:GetAngles()
+		local ang2 = self:GetTarget():GetAngles()
+		local pos = self:GetTarget():GetPos()
+		local ydif = math.AngleDifference( ang1.y, ang2.y )
+		local seq
+		if ydif < 0 then ydif = ydif +360 end
+		if ydif <= 45 or ydif >= 315 then
+			turn = true
+		elseif ydif <= 135 and ydif >= 45 then
+			turn = true
+		elseif ydif <= 315 and ydif >= 235 then
+			turn = true
+		end
+		
+		if turn == false then
+			self.loco:SetDesiredSpeed(self.Speed)
+			self:ResetSequence(self.WalkAnim)
+		end
+		return turn
+	else
+		self.loco:SetDesiredSpeed(self.Speed)
+		self:ResetSequence(self.WalkAnim)
+		return false
 	end
 end

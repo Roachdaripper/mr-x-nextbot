@@ -8,6 +8,7 @@ function ENT:Initialize()
 	self:SetModel("models/props_junk/PopCan01a.mdl")
 	if SERVER then
 		self:Fire("setparentattachment","tag_ragdoll_attach", 0)
+		self.CanDetach = false
 
 		self.attachId = self:GetParent():LookupAttachment("tag_ragdoll_attach")
 		local attachment = self:GetParent():GetAttachment(self.attachId)
@@ -35,10 +36,15 @@ end
 
 function ENT:Think()
 	if SERVER and IsValid(self.doll) then
+		if self.CanDetach then 
+			self.bone:EnableMotion(true)
+			if self.doll:GetManipulateBoneScale(self.doll:LookupBone("ValveBiped.Bip01_Head1")) == Vector(1,1,1) then
+				self.doll:ManipulateBoneScale(self.doll:LookupBone("ValveBiped.Bip01_Head1"), Vector(0,0,0))
+			end
+		return end
+		
 		local attachment = self:GetParent():GetAttachment(self.attachId)
 		self.bone:SetPos(attachment.Pos+(self:GetParent():GetForward()*10))
-		-- self.bone:EnableMotion(false)
-		-- self.bone:SetAngles(self.bone:RotateAroundAxis(Vector(1,0,0),180))
 		
 		for bonelim = 1,128 do -- 128 = Bone Limit
 			local childphys = self:GetPhysicsObjectNum(bonelim)
