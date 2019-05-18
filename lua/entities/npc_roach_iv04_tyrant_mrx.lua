@@ -162,6 +162,13 @@ function ENT:CustomChaseTarget(target)
 	self:Flinch()
 	self:CommitDie()
 	
+	for k,v in pairs(ents.FindInSphere(self:GetPos(),70)) do
+		if (string.find(v:GetClass(),"prop_combine_ball")) then
+			self.CanFlinch = true
+			v:Fire("explode","",0.1)
+		end
+	end
+	
 	if self.CanOpenDoor == true then
 		local doorseq,doordur = self:LookupSequence("9200")
 		local doorseq2,doordur2 = self:LookupSequence("9201")
@@ -432,12 +439,12 @@ function ENT:OnInjured(dmginfo)
 				
 				self.ShotOffHat = true
 			end
-			if hitgroup == HITGROUP_RIGHTARM and dmginfo:GetDamage() > 100 then
+			if self:GetSequence() != self:LookupSequence("2200") and (hitgroup == HITGROUP_RIGHTARM and dmginfo:GetDamage() > 100) then
 				self.CanAttack = false
 				self:RestartGesture(ACT_GESTURE_FLINCH_RIGHTARM)
 				timer.Simple(65/30, function() self.CanAttack=true end)
 			end
-			if hitgroup == HITGROUP_LEFTARM and dmginfo:GetDamage() > 100 then
+			if self:GetSequence() != self:LookupSequence("2200") and (hitgroup == HITGROUP_LEFTARM and dmginfo:GetDamage() > 100) then
 				self.CanAttack = false
 				self:RestartGesture(ACT_GESTURE_FLINCH_LEFTARM)
 				timer.Simple(65/30, function() self.CanAttack=true end)
