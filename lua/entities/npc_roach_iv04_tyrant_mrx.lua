@@ -23,6 +23,69 @@ ENT.WalkAnim = "0200"
 ENT.AllyNPCTable = {
 	"npc_zombie"
 }
+ENT.StuffToRunInCoroutine = {}
+ENT.SearchTier = 1
+
+-- LOL REALLY DUMB SOUND DETECTION BULLSHIT XDDDDDDDDDD
+
+local xtbl = {}
+if SERVER then
+	function ENT:RestartCoroutine()
+		self.BehaveThread = nil
+		self.BehaveThread = coroutine.create(function() self:RunBehaviour() end)
+	end
+	function ENT:SelfGonHearYa(TABLE)
+		if self.CanAttack then
+			local t = TABLE or {}
+			local ent = t.Entity
+			local pos = ent:WorldSpaceCenter()
+			if ent == self then return end
+			if (ent:IsPlayer() and !ent:Crouching()) or ent:IsNPC() then
+				if !IsValid(self:GetTarget()) and (pos:DistToSqr(self:GetPos()) <= (700*self.SearchTier)^2) then
+					local tbla = self.StuffToRunInCoroutine
+					local func = function()
+						self.loco:SetDesiredSpeed(self.Speed)
+						self:ResetSequence(self.WalkAnim)
+						
+						if self:ShouldTurn(pos) then self:Turn(pos) end
+						self:InvestigateToPos(pos)
+					end
+					table.insert(tbla,func)
+					self:RestartCoroutine()
+				end
+			end
+		end
+	end
+end
+
+function ENT:InvestigateToPos(pos, options)
+	local options = options or {}
+
+	local path = Path("Follow")
+	path:SetMinLookAheadDistance(options.lookahead or 300)
+	path:SetGoalTolerance(options.tolerance or 20)
+	path:Compute(self, pos)
+
+	if (!path:IsValid()) then return "failed" end
+	while (path:IsValid()) do
+		if IsValid(self:GetTarget()) then 
+			return "failed" 
+		else
+			self:FindEnemy()
+		end
+		path:Update(self)
+		if (self.loco:IsStuck()) then
+			self:HandleStuck()
+			return "stuck"
+		end
+		coroutine.yield()
+	end
+	self:CustomIdle()
+	return "ok"
+end
+
+
+-- LOL REALLY DUMB SOUND DETECTION BULLSHIT XDDDDDDDDDD
 
 function ENT:rnd(a)
 	return math.random(1,a)
@@ -35,7 +98,35 @@ function ENT:snd(a,b)
 	end)
 end
 
-function ENT:Think()
+function ENT:CustomIdle()
+	local playertarget = player.GetAll()[math.random(1,#player.GetAll())]
+	local spots = self:FindSpot("random",{
+		type="hiding",
+		pos=playertarget:GetPos(),
+		radius=1000,
+		stepup=1000,
+		stepdown=1000
+	})
+	self.loco:SetDesiredSpeed(self.Speed)
+	self:ResetSequence(self.WalkAnim)
+	self:InvestigateToPos(spots)
+		
+	if math.random(1,1000) <= 850 then
+		self:PlaySequenceAndWait("0000")
+	else
+		self:snd("re2/em6200/step"..self:rnd(5)..".mp3",10/30)
+		self:snd("re2/em6200/step"..self:rnd(5)..".mp3",19/30)
+		for i=3,8 do self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",(10*i)/30) end
+		self:snd("re2/em6200/step"..self:rnd(5)..".mp3",86/30)
+		self:snd("re2/em6200/step"..self:rnd(5)..".mp3",100/30)
+		self:PlaySequenceAndSetAngles("turn_180right2")
+		if self:HaveTarget() then
+			self.loco:SetDesiredSpeed(self.Speed)
+			self:ResetSequence("0200")
+			self:ChaseTarget()
+		end
+	end
+	self:DirectPoseParametersAt(nil, "aim_pitch", "aim_yaw")
 end
 function ENT:CustomInit()
 	self.PissedOff = false
@@ -49,6 +140,7 @@ function ENT:CustomInit()
 	self.IsDead = false
 	self.IsPlayingGesture = false
 	self.CanOpenDoor = true
+	self.IsTurning = false
 	
 	self.Grab_IsGrabbing = false
 	self.Grab_DidSucceed = false -- Did we succeed in grabbing a bitch?
@@ -56,7 +148,14 @@ function ENT:CustomInit()
 	for i=3,117 do self:ManipulateBoneJiggle(i, 1) end
 	
 	self:SetCollisionBounds(Vector(-14,-20,0), Vector(15,20,93))
-	if SERVER then self:SetSolidMask(MASK_NPCSOLID)self:SetName("nextbot_mrx"..self:EntIndex()) end
+	if SERVER then 
+		self:SetSolidMask(MASK_NPCSOLID)
+		self:SetName("nextbot_mrx"..self:EntIndex())
+		hook.Add("EntityCreated", self, self.AddToTableXCount)
+		hook.Add("EntityEmitSound", self, self.SelfGonHearYa)--function(tbl)
+			-- self:SelfGonHearYa(tbl)
+		-- end)
+	end
 end
 function ENT:OnSpawn()
 	local tr = util.TraceLine({
@@ -96,33 +195,31 @@ function ENT:OnContact(ent)
 			timer.Simple(0.4,function()
 				if !IsValid(self) then return end
 				
-				print("RIGHT")
 				local dmg = DamageInfo()
 				dmg:SetDamage(100000)
-				dmg:SetDamageForce(self:GetRight()* -Vector(0,50000000,0))
+				dmg:SetDamageForce(self:GetRight()* -Vector(0,50000,0))
 				dmg:SetDamageType(DMG_CLUB)
 				dmg:SetAttacker(self)
 				dmg:SetReportedPosition(self:GetPos())
 				
-				ent:SetVelocity(self:GetRight()* -Vector(0,50000000,990))
+				ent:SetVelocity(self:GetRight()* -Vector(0,50000,990))
 				ent:TakeDamageInfo(dmg)
 				
 				self:EmitSound("re2/em6200/attack_hit"..self:rnd(5)..".mp3",511,100)
 			end)
 		else
-			self:RestartGesture(self:GetSequenceActivity( self:LookupSequence("g_puntL2") ))
+			self:RestartGesture(self:GetSequenceActivity(self:LookupSequence("g_puntL2")))
 			timer.Simple(0.4,function()
 				if !IsValid(self) then return end
 				
-				print("LEFT")
 				local dmg = DamageInfo()
 				dmg:SetDamage(100000)
-				dmg:SetDamageForce(self:GetRight()*Vector(0,50000000,0))
+				dmg:SetDamageForce(self:GetRight()*Vector(0,50000,0))
 				dmg:SetDamageType(DMG_CLUB)
 				dmg:SetAttacker(self)
 				dmg:SetReportedPosition(self:GetPos())
 				
-				ent:SetVelocity(self:GetRight()* Vector(0,50000000,990))
+				ent:SetVelocity(self:GetRight()* Vector(0,50000,990))
 				ent:TakeDamageInfo(dmg)
 				
 				self:EmitSound("re2/em6200/attack_hit"..self:rnd(5)..".mp3",511,100)
@@ -315,7 +412,7 @@ function ENT:CustomChaseTarget(target)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",2.6)
 			
 			self:Helper_Attack(v,1,"3000",50,96,"re2/em6200/attack_hit"..self:rnd(5)..".mp3")
-			if self:GetTarget():Health() <= 0 then self:SetTarget(nil)self:CustomIdle() end
+			if self:GetTarget():Health() <= 0 then self:SetTarget(nil) end
 		elseif rm == 2 then
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0.1)
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0.5)
@@ -323,21 +420,21 @@ function ENT:CustomChaseTarget(target)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",3.2)
 				
 			self:Helper_Attack(v,1,"3001",50,96,"re2/em6200/attack_hit"..self:rnd(5)..".mp3")
-			if self:GetTarget():Health() <= 0 then self:SetTarget(nil)self:CustomIdle() end
+			if self:GetTarget():Health() <= 0 then self:SetTarget(nil) end
 		elseif rm == 3 then
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0.1)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",2)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",2.4)
 			
 			self:Helper_Attack(v,0.6,"3002",30,96,"re2/em6200/attack_hit"..self:rnd(5)..".mp3")
-			if self:GetTarget():Health() <= 0 then self:SetTarget(nil)self:CustomIdle() end
+			if self:GetTarget():Health() <= 0 then self:SetTarget(nil) end
 		elseif rm == 4 then
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0.1)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",2)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",2.6)
 			
 			self:Helper_Attack(v,0.6,"3003",30,96,"re2/em6200/attack_hit"..self:rnd(5)..".mp3")
-			if self:GetTarget():Health() <= 0 then self:SetTarget(nil)self:CustomIdle() end
+			if self:GetTarget():Health() <= 0 then self:SetTarget(nil) end
 		elseif rm == 5 then -- grab
 			self.Grab_IsGrabbing = true
 			
@@ -408,14 +505,13 @@ function ENT:CustomChaseTarget(target)
 		end
 	end
 end
-function ENT:CustomIdle()
-	self:ResetSequence("0000")
-	self:DirectPoseParametersAt(nil, "aim_pitch", "aim_yaw")
-end
-function ENT:CustomRunBehaviour()end
 function ENT:OnKilled(dmginfo)
 	ErrorNoHalt("Tyrant [Index: "..self:EntIndex().."] just died! This shouldn't happen!")
 	SafeRemoveEntity(self)
+end
+function ENT:OnRemove()
+	hook.Remove( "EntityCreated", self )
+	hook.Remove( "EntityEmitSound", self )
 end
 function ENT:OnInjured(dmginfo)
 	if self:GetSequence() == self:LookupSequence("2201") then dmginfo:ScaleDamage(0) return end
@@ -699,11 +795,22 @@ function ENT:HaveTarget()
 	end 
 end
 function ENT:FindTarget()
-	local _ents = ents.FindInSphere(self:GetPos(), self.SearchRadius or 700)
+	local pos, ang = self:GetBonePosition(179)
+	local _ents = ents.FindInCone(pos, ang:Forward(), self.SearchRadius or 700, math.cos(math.rad(90)))
 		for k,v in pairs(_ents) do 
-			if (v:IsPlayer() and v:Alive()) and self:AcceptTarget(v) then 
-				self:SetTarget(v)
-				return true 
+			if (v:IsPlayer() and v:Alive()) and self:AcceptTarget(v) then
+				local tr = util.TraceLine({
+					start=pos,
+					endpos=v:WorldSpaceCenter(),
+					filter=self
+				})
+				if tr.Hit and tr.Entity == v then
+					self:SetTarget(v) -- We have a direct LOS to the victim
+					return true 
+				else
+					self:SetTarget(nil)
+					return false
+				end
 			end 
 		end 
 	self:SetTarget(nil)self:CustomIdle()
@@ -721,12 +828,22 @@ function ENT:SpawnIn()
 		end
 		SafeRemoveEntity(self)
 	end 
+	self.FirstSpawn = true
 	self:OnSpawn()
 end
 function ENT:RunBehaviour()
-	self:SpawnIn()
+	if !self.FirstSpawn then
+		self:SpawnIn()
+	end
 	while (true) do
-		self:CustomRunBehaviour()
+		while #self.StuffToRunInCoroutine > 0 do 
+		-- Basically this can make the nextbot modify the coroutine outside it, 
+		-- you would just use table.insert and insert the function you want to call here, 
+		-- thx Dragoteryx
+			local behaviour = self.StuffToRunInCoroutine[1]
+			table.remove(self.StuffToRunInCoroutine, 1)
+			behaviour()
+		end
 		if (self:HaveTarget()) then 
 			if self:ShouldTurn() then
 				self:Turn()
@@ -1040,11 +1157,12 @@ function ENT:PlaySequenceAndSetAngles(anim)
 				local ga2,gb2,gc2 = self:GetSequenceMovement(seq,gd_prev,gd_cur)
 				gd_prev = gd_cur
 
-				if (not ga2) or (gb2 == Vector(0,0,0)) or (gd_cur==0) or (!util.IsInWorld(self:LocalToWorld(gb2))) then return end
+				if (not ga2) or (gd_cur==0) then return end
 				self:SetAngles(self:LocalToWorldAngles(gc2))
 			end)
 		end
 	coroutine.wait(dur)
+	self.Isturning = false
 	self:ResetSequence(self.WalkAnim)
 	self.loco:SetDesiredSpeed(self.Speed)
 end
@@ -1062,71 +1180,67 @@ function ENT:DirectPoseParametersAt(pos, pitch, yaw, center)
 	end
 end
 
-function ENT:Turn()
-    if IsValid(self:GetTarget()) then
-            local ang1 = self:GetAngles()
-            local ang2 = self:GetTarget():GetAngles()
-            local pos = self:GetTarget():GetPos()
-            local ydif = math.AngleDifference( ang1.y, ang2.y )
-            local seq
-            if ydif < 0 then ydif = ydif +360 end
-            if ydif <= 45 or ydif >= 315 then
-                local random = math.random(1,2)
-                local seq
-                if random == 1 then
-                    seq = "turn_180left"
-                elseif random == 2 then
-                    seq = "turn_180right"
-                end
-				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",33/30)
-				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",50/30)
-                self:PlaySequenceAndSetAngles(seq)
-				self:ResetSequence(self.WalkAnim)
-				self.loco:SetDesiredSpeed(self.Speed)
-            elseif ydif <= 135 and ydif >= 45 then
-                --Left
-                seq = "turn_90left"
-				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",20/30)
-				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",33/30)
-                self:PlaySequenceAndSetAngles(seq)
-				self:ResetSequence(self.WalkAnim)
-				self.loco:SetDesiredSpeed(self.Speed)
-            elseif ydif <= 315 and ydif >= 235 then
-                --Right
-                seq = "turn_90right"
-				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",20/30)
-				self:snd("re2/em6200/step"..self:rnd(5)..".mp3",33/30)
-                self:PlaySequenceAndSetAngles(seq)
-				self:ResetSequence(self.WalkAnim)
-				self.loco:SetDesiredSpeed(self.Speed)
-            end
-    end
-end
-function ENT:ShouldTurn()
-    if IsValid(self:GetTarget()) then
-		local turn = false
+function ENT:Turn(pos)
+	if self.IsTurning then return end
+	
+	self.IsTurning = true
+		pos = pos or self:GetTarget():GetPos()
 		local ang1 = self:GetAngles()
-		local ang2 = self:GetTarget():GetAngles()
-		local pos = self:GetTarget():GetPos()
-		local ydif = math.AngleDifference( ang1.y, ang2.y )
+		local ang2 = IsValid(self:GetTarget()) and self:GetTarget():GetAngles() or pos:Angle()
+		local ydif = math.AngleDifference(ang1.y, ang2.y)
 		local seq
 		if ydif < 0 then ydif = ydif +360 end
 		if ydif <= 45 or ydif >= 315 then
-			turn = true
-		elseif ydif <= 135 and ydif >= 45 then
-			turn = true
-		elseif ydif <= 315 and ydif >= 235 then
-			turn = true
-		end
-		
-		if turn == false then
-			self.loco:SetDesiredSpeed(self.Speed)
+			local random = math.random(1,2)
+			local seq
+			if random == 1 then
+				seq = "turn_180left"
+			elseif random == 2 then
+				seq = "turn_180right"
+			end
+			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",33/30)
+			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",50/30)
+			self:PlaySequenceAndSetAngles(seq)
 			self:ResetSequence(self.WalkAnim)
+			self.loco:SetDesiredSpeed(self.Speed)
+		elseif ydif <= 135 and ydif >= 45 then
+			--Left
+			seq = "turn_90left"
+			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",20/30)
+			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",33/30)
+			self:PlaySequenceAndSetAngles(seq)
+			self:ResetSequence(self.WalkAnim)
+			self.loco:SetDesiredSpeed(self.Speed)
+		elseif ydif <= 315 and ydif >= 235 then
+			--Right
+			seq = "turn_90right"
+			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",20/30)
+			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",33/30)
+			self:PlaySequenceAndSetAngles(seq)
+			self:ResetSequence(self.WalkAnim)
+			self.loco:SetDesiredSpeed(self.Speed)
 		end
-		return turn
-	else
+	-- self.Isturning = false
+end
+function ENT:ShouldTurn(pos)
+	pos = pos or self:GetTarget():GetPos()
+	local turn = false
+	local ang1 = self:GetAngles()
+	local ang2 = IsValid(self:GetTarget()) and self:GetTarget():GetAngles() or pos:Angle()
+	local ydif = math.AngleDifference(ang1.y, ang2.y)
+	local seq
+	if ydif < 0 then ydif = ydif +360 end
+	if ydif <= 45 or ydif >= 315 then
+		turn = true
+	elseif ydif <= 135 and ydif >= 45 then
+		turn = true
+	elseif ydif <= 315 and ydif >= 235 then
+		turn = true
+	end
+	
+	if turn == false then
 		self.loco:SetDesiredSpeed(self.Speed)
 		self:ResetSequence(self.WalkAnim)
-		return false
 	end
+	return turn
 end
