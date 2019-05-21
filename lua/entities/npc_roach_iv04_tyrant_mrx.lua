@@ -100,13 +100,8 @@ end
 
 function ENT:CustomIdle()
 	local playertarget = player.GetAll()[math.random(1,#player.GetAll())]
-	local spots = Vector(0, 0, 0)--[[self:FindSpot("random",{
-		type="hiding",
-		pos=playertarget:GetPos(),
-		radius=1000,
-		stepup=1000,
-		stepdown=1000
-	})]]
+	local pos = playertarget:GetPos() + Vector(math.random(-1, 1)*1000, math.random(-1, 1)*1000, math.random(-1, 1)*1000)
+	local spots = navmesh.GetNearestNavArea(pos):GetCenter()
 
 	self.loco:SetDesiredSpeed(self.Speed)
 	self:ResetSequence(self.WalkAnim)
