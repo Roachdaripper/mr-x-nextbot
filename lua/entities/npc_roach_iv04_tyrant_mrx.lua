@@ -46,7 +46,7 @@ if SERVER then
 					local func = function()
 						self.loco:SetDesiredSpeed(self.Speed)
 						self:ResetSequence(self.WalkAnim)
-						
+
 						if self:ShouldTurn(pos) then self:Turn(pos) end
 						self:InvestigateToPos(pos)
 					end
@@ -68,10 +68,10 @@ function ENT:InvestigateToPos(pos, options)
 
 	if (!path:IsValid()) then return "failed" end
 	while (path:IsValid()) do
-		if IsValid(self:GetTarget()) then 
-			return "failed" 
+		if IsValid(self:GetTarget()) then
+			return "failed"
 		else
-			self:FindEnemy()
+			self:FindTarget()
 		end
 		path:Update(self)
 		if (self.loco:IsStuck()) then
@@ -100,17 +100,18 @@ end
 
 function ENT:CustomIdle()
 	local playertarget = player.GetAll()[math.random(1,#player.GetAll())]
-	local spots = self:FindSpot("random",{
+	local spots = Vector(0, 0, 0)--[[self:FindSpot("random",{
 		type="hiding",
 		pos=playertarget:GetPos(),
 		radius=1000,
 		stepup=1000,
 		stepdown=1000
-	})
+	})]]
+
 	self.loco:SetDesiredSpeed(self.Speed)
 	self:ResetSequence(self.WalkAnim)
 	self:InvestigateToPos(spots)
-		
+
 	if math.random(1,1000) <= 850 then
 		self:PlaySequenceAndWait("0000")
 	else
@@ -141,14 +142,14 @@ function ENT:CustomInit()
 	self.IsPlayingGesture = false
 	self.CanOpenDoor = true
 	self.IsTurning = false
-	
+
 	self.Grab_IsGrabbing = false
 	self.Grab_DidSucceed = false -- Did we succeed in grabbing a bitch?
 
 	for i=3,117 do self:ManipulateBoneJiggle(i, 1) end
-	
+
 	self:SetCollisionBounds(Vector(-14,-20,0), Vector(15,20,93))
-	if SERVER then 
+	if SERVER then
 		self:SetSolidMask(MASK_NPCSOLID)
 		self:SetName("nextbot_mrx"..self:EntIndex())
 		hook.Add("EntityCreated", self, self.AddToTableXCount)
@@ -170,23 +171,24 @@ function ENT:OnSpawn()
 		ParticleEffect("strider_headbeating_01",tr.HitPos,Angle(0,0,0),nil)
 		ParticleEffect("strider_goop_01e",tr.HitPos,Angle(0,0,0),nil)
 		ParticleEffect("strider_brain_open_01b",tr.HitPos,Angle(0,0,0),nil)
-		
+
 		self:EmitSound("explode_4",511,100)
 	end
 	timer.Simple(31/30,function()if !IsValid(self) then return end self:EmitSound("re2/em6200/land.mp3",511,100)end)
 	self:PlaySequenceAndWait("nzu_intro_fall")
-	
+
 	self:snd("re2/em6200/step"..self:rnd(5)..".mp3",18/30)
 	self:snd("re2/em6200/step"..self:rnd(5)..".mp3",33/30)
 	self:snd("re2/em6200/step"..self:rnd(5)..".mp3",40/30)
 	self:PlaySequenceAndWait("nzu_intro_land")
-	
+
 	self.CanAttack = true
 end
 
 function ENT:OnContact(ent)
 	if self.CanAttack and (ent != self:GetTarget()) and (ent:IsPlayer() or ent:IsNPC()) then
 		self.CanAttack = false
+		local velocity = Vector(0, 150, 50)
 		local right = self:GetPos()+self:GetRight()*1
 		local left = self:GetPos()-self:GetRight()*1
 		local pos = ent:GetPos()
@@ -194,34 +196,34 @@ function ENT:OnContact(ent)
 			self:RestartGesture(140)
 			timer.Simple(0.4,function()
 				if !IsValid(self) then return end
-				
+
 				local dmg = DamageInfo()
 				dmg:SetDamage(100000)
-				dmg:SetDamageForce(self:GetRight()* -Vector(0,50000,0))
+				dmg:SetDamageForce(self:GetRight()* -velocity)
 				dmg:SetDamageType(DMG_CLUB)
 				dmg:SetAttacker(self)
 				dmg:SetReportedPosition(self:GetPos())
-				
-				ent:SetVelocity(self:GetRight()* -Vector(0,50000,990))
+
+				ent:SetVelocity(self:GetRight()* -velocity)
 				ent:TakeDamageInfo(dmg)
-				
+
 				self:EmitSound("re2/em6200/attack_hit"..self:rnd(5)..".mp3",511,100)
 			end)
 		else
 			self:RestartGesture(self:GetSequenceActivity(self:LookupSequence("g_puntL2")))
 			timer.Simple(0.4,function()
 				if !IsValid(self) then return end
-				
+
 				local dmg = DamageInfo()
 				dmg:SetDamage(100000)
-				dmg:SetDamageForce(self:GetRight()*Vector(0,50000,0))
+				dmg:SetDamageForce(self:GetRight()*velocity)
 				dmg:SetDamageType(DMG_CLUB)
 				dmg:SetAttacker(self)
 				dmg:SetReportedPosition(self:GetPos())
-				
-				ent:SetVelocity(self:GetRight()* Vector(0,50000,990))
+
+				ent:SetVelocity(self:GetRight()* velocity)
 				ent:TakeDamageInfo(dmg)
-				
+
 				self:EmitSound("re2/em6200/attack_hit"..self:rnd(5)..".mp3",511,100)
 			end)
 		end
@@ -240,12 +242,12 @@ function ENT:OnLandOnGround()
 		self.CanAttack = false
 		self.loco:SetDesiredSpeed(0)
 		self:EmitSound("re2/em6200/land.mp3",511,100)
-		
+
 		local seqid,dur = self:LookupSequence("1750")
 		self:SetSequence(seqid)
 		self:SetCycle(0)
 		self:ResetSequenceInfo()
-		
+
 		timer.Simple(dur,function()
 			if !IsValid(self) then return end
 			self.loco:SetDesiredSpeed(self.Speed)
@@ -258,14 +260,14 @@ function ENT:CustomChaseTarget(target)
 	self:Taunt()
 	self:Flinch()
 	self:CommitDie()
-	
+
 	for k,v in pairs(ents.FindInSphere(self:GetPos(),70)) do
 		if (string.find(v:GetClass(),"prop_combine_ball")) then
 			self.CanFlinch = true
 			v:Fire("explode","",0.1)
 		end
 	end
-	
+
 	if self.CanOpenDoor == true then
 		local doorseq,doordur = self:LookupSequence("9200")
 		local doorseq2,doordur2 = self:LookupSequence("9201")
@@ -286,7 +288,7 @@ function ENT:CustomChaseTarget(target)
 				if isstring(fuck_double_doors1.slavename) and fuck_double_doors1.slavename != "" then
 					fuck_double_doors2 = ents.FindByName(fuck_double_doors1.slavename)[1]
 				end
-				
+
 				if fwd:DistToSqr(pos) < bck:DistToSqr(pos) then -- entered from forward
 					self:SetNotSolid(true)
 					door:SetNotSolid(true)
@@ -312,15 +314,15 @@ function ENT:CustomChaseTarget(target)
 				end
 				-- find ourselves to know which side of the door we're on
 				if (fwd:DistToSqr(pos) < bck:DistToSqr(pos)) or (bck:DistToSqr(pos) < fwd:DistToSqr(pos)) then
-					
+
 					self:SetNotSolid(true)
 					door:SetNotSolid(true)
 					door:Fire("setspeed",500)
-					
+
 					if isentity(fuck_double_doors2) then
 						fuck_double_doors2:SetNotSolid(true)
 						fuck_double_doors2:Fire("setspeed",500)
-						
+
 						timer.Simple(7/30,function()
 							if !IsValid(self) then return end
 							self:EmitSound("doors/vent_open3.wav",511,math.random(50,80))
@@ -343,7 +345,7 @@ function ENT:CustomChaseTarget(target)
 								self:SetNotSolid(false)
 							end)
 						end)
-					
+
 						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",7/30)
 						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",13/30)
 						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",57/30)
@@ -368,7 +370,7 @@ function ENT:CustomChaseTarget(target)
 								self:SetNotSolid(false)
 							end)
 						end)
-					
+
 						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",6/30)
 						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",13/30)
 						self:snd("re2/em6200/step"..self:rnd(5)..".mp3",20/30)
@@ -395,22 +397,22 @@ function ENT:CustomChaseTarget(target)
 		end
 		end
 	end
-	
+
 	local v = target
-	
+
 	if self.CanAttack and self:GetRangeTo(v:GetPos()) < 96 then
 		if self.PissedOff then
 			self:DoChangeWalk()
 			self.PissedOff = false
 		end
-		
+
 		-- function ENT:Helper_Attack(victim,delay,sequence,damage,damageradius,hitsound)
 		local rm = math.random(1,5)
 		if rm == 1 then
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0.1)
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0.5)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",2.6)
-			
+
 			self:Helper_Attack(v,1,"3000",50,96,"re2/em6200/attack_hit"..self:rnd(5)..".mp3")
 			if self:GetTarget():Health() <= 0 then self:SetTarget(nil) end
 		elseif rm == 2 then
@@ -418,46 +420,46 @@ function ENT:CustomChaseTarget(target)
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0.5)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",2.8)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",3.2)
-				
+
 			self:Helper_Attack(v,1,"3001",50,96,"re2/em6200/attack_hit"..self:rnd(5)..".mp3")
 			if self:GetTarget():Health() <= 0 then self:SetTarget(nil) end
 		elseif rm == 3 then
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0.1)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",2)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",2.4)
-			
+
 			self:Helper_Attack(v,0.6,"3002",30,96,"re2/em6200/attack_hit"..self:rnd(5)..".mp3")
 			if self:GetTarget():Health() <= 0 then self:SetTarget(nil) end
 		elseif rm == 4 then
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0.1)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",2)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",2.6)
-			
+
 			self:Helper_Attack(v,0.6,"3003",30,96,"re2/em6200/attack_hit"..self:rnd(5)..".mp3")
 			if self:GetTarget():Health() <= 0 then self:SetTarget(nil) end
 		elseif rm == 5 then -- grab
 			self.Grab_IsGrabbing = true
-			
+
 			self:SetSequence("ragdoll_grabA")
 				self:SetCycle(0)
 				self:SetPlaybackRate(1)
 				self:ResetSequenceInfo()
 			self.loco:SetDesiredSpeed(0)
-			
+
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",0)
 			self:snd("re2/em6200/step"..self:rnd(5)..".mp3",13/30)
 			self:snd("re2/em6200/attack_swing"..self:rnd(5)..".mp3",13/30)
 			timer.Simple(15/30, function()
 				if self:GetRangeTo(v:GetPos()) < 100 then
 					self.Grab_DidSucceed = true
-					
+
 					self.attachment=ents.Create("obj_ragdoll_attachment_body_mrx")
 					self.attachment.model = v:GetModel()
 					self.attachment:SetPos(self:GetPos())
 					self.attachment:SetParent(self)
 					self.attachment:Spawn()
 					self:DeleteOnRemove(self.attachment)
-					
+
 					if v:IsPlayer() then
 						v:SetPos(self:GetPos() + (self:GetForward()*60) + Vector(0,0,60))
 						v:KillSilent()
@@ -482,8 +484,8 @@ function ENT:CustomChaseTarget(target)
 					for i=1,math.random(5,10) do ParticleEffectAttach("blood_impact_red_01",PATTACH_POINT_FOLLOW,self,3) end
 					self.attachment.CanDetach = true
 					self.attachment.doll:Fire("fadeandremove",1,10)
-					if (v:IsPlayer() and !v:Alive()) then 
-						v:ScreenFade(SCREENFADE.IN,Color(255,0,0,255),0.3,0.2) 
+					if (v:IsPlayer() and !v:Alive()) then
+						v:ScreenFade(SCREENFADE.IN,Color(255,0,0,255),0.3,0.2)
 						v:EmitSound("player/pl_pain"..math.random(5,7)..".wav",511,100)
 					end
 				end)
@@ -491,7 +493,7 @@ function ENT:CustomChaseTarget(target)
 				if self:ShouldTurn() then
 					self:Turn()
 				end
-				
+
 				self.Grab_DidSucceed = false
 				self.Grab_IsGrabbing = false
 				self:CustomIdle()
@@ -516,7 +518,7 @@ end
 function ENT:OnInjured(dmginfo)
 	if self:GetSequence() == self:LookupSequence("2201") then dmginfo:ScaleDamage(0) return end
 	-- Don't react to damage at all if we're down.
-	
+
 		if IsValid(dmginfo:GetAttacker()) and dmginfo:GetAttacker():IsPlayer() then
 			local hitgroup = dmginfo:GetAttacker():GetEyeTrace().HitGroup
 			if hitgroup == HITGROUP_HEAD and not self.ShotOffHat then
@@ -528,11 +530,11 @@ function ENT:OnInjured(dmginfo)
 				hat:Spawn()
 				hat:SetCollisionGroup(COLLISION_GROUP_WEAPON)
 				self:DeleteOnRemove(hat)
-				
+
 				local phys = hat:GetPhysicsObject()
 				phys:SetVelocity((self:GetForward()*-150) + (self:GetUp()*150))
 				phys:AddAngleVelocity(Vector(0, 500, 0))
-				
+
 				self.ShotOffHat = true
 			end
 			if self:GetSequence() != self:LookupSequence("2200") and (hitgroup == HITGROUP_RIGHTARM and dmginfo:GetDamage() > 100) then
@@ -545,12 +547,12 @@ function ENT:OnInjured(dmginfo)
 				self:RestartGesture(ACT_GESTURE_FLINCH_LEFTARM)
 				timer.Simple(65/30, function() self.CanAttack=true end)
 			end
-		end	
+		end
 	self.HiddenHealth = self.HiddenHealth - dmginfo:GetDamage()
 	dmginfo:ScaleDamage(0)
-	if dmginfo:GetDamageType() == DMG_SHOCK then 
-		self.CanCommitDie = true 
-		self.IsShocked = true 
+	if dmginfo:GetDamageType() == DMG_SHOCK then
+		self.CanCommitDie = true
+		self.IsShocked = true
 	else
 		if self.HiddenHealth <= 0 then
 			self.HiddenHealth = 5000
@@ -564,7 +566,7 @@ function ENT:OnInjured(dmginfo)
 				self:DoChangeRun()
 				self.PissedOff = true
 			end
-			
+
 			if dmginfo:IsExplosionDamage() then self.CanFlinch = true end
 		end
 	end
@@ -579,18 +581,18 @@ function ENT:DoChangeRun()
 end
 function ENT:Taunt()
 	if not self.CanTaunt then return end
-	
+
 	self:DirectPoseParametersAt(nil, "aim_pitch", "aim_yaw")
 	self.CanAttack = false
 	self.CanTaunt = false
-	
+
 	local mtaunt = math.random(1,3)
 	if mtaunt == 1 then -- neck crack
 		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",0)
 		self:snd("re2/em6200/foley_adjust_hat"..self:rnd(2)..".mp3",0.7)
 		self:snd("re2/em6200/foley_adjust_hat"..self:rnd(2)..".mp3",1)
 		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",1.2)
-		
+
 		self:RestartGesture(ACT_GMOD_GESTURE_TAUNT_ZOMBIE)
 		timer.Simple(83/30,function()
 			self.CanAttack = true
@@ -600,7 +602,7 @@ function ENT:Taunt()
 		self:snd("re2/em6200/foley_taunt"..self:rnd(2)..".mp3",0.4)
 		self:snd("re2/em6200/land.mp3",0.7)
 		self:snd("re2/em6200/foley"..self:rnd(3)..".mp3",1.2)
-		
+
 		self:RestartGesture(ACT_GMOD_GESTURE_RANGE_ZOMBIE)
 		timer.Simple(54/30,function()
 			self.CanAttack = true
@@ -610,7 +612,7 @@ function ENT:Taunt()
 		self:snd("re2/em6200/foley_adjust_hat"..self:rnd(2)..".mp3",0.7)
 		self:snd("re2/em6200/foley_adjust_hat"..self:rnd(2)..".mp3",1)
 		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",1.2)
-		
+
 		self:RestartGesture(ACT_GMOD_GESTURE_RANGE_ZOMBIE_SPECIAL)
 		timer.Simple(67/30,function()
 			self.CanAttack = true
@@ -619,10 +621,10 @@ function ENT:Taunt()
 end
 function ENT:Flinch()
 	if not self.CanFlinch then return end
-	
+
 	self.CanAttack = false
 	self.CanFlinch = false
-	
+
 	local flinch = math.random(1,3)
 	if flinch == 1 then
 		self:snd("re2/em6200/foley"..self:rnd(3)..".mp3",0)
@@ -632,7 +634,7 @@ function ENT:Flinch()
 		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",2.5)
 		self:snd("re2/em6200/step"..self:rnd(5)..".mp3",3.4)
 		self:snd("re2/em6200/step"..self:rnd(5)..".mp3",3.8)
-		
+
 		self:PlaySequenceAndWait("9050")
 		if self:ShouldTurn() then
 			self:Turn()
@@ -646,7 +648,7 @@ function ENT:Flinch()
 		self:snd("re2/em6200/foley"..self:rnd(3)..".mp3",1.5)
 		self:snd("re2/em6200/step"..self:rnd(5)..".mp3",3.2)
 		self:snd("re2/em6200/step"..self:rnd(5)..".mp3",3.7)
-		
+
 		self:PlaySequenceAndWait("9060")
 		if self:ShouldTurn() then
 			self:Turn()
@@ -660,7 +662,7 @@ function ENT:Flinch()
 		self:snd("re2/em6200/foley"..self:rnd(3)..".mp3",1.5)
 		self:snd("re2/em6200/step"..self:rnd(5)..".mp3",3)
 		self:snd("re2/em6200/step"..self:rnd(5)..".mp3",3.5)
-		
+
 		self:PlaySequenceAndWait("9061")
 		if self:ShouldTurn() then
 			self:Turn()
@@ -670,14 +672,14 @@ function ENT:Flinch()
 end
 function ENT:CommitDie()
 	if not self.CanCommitDie then return end
-	
+
 	self.CanAttack = false
 	self.CanCommitDie = false
 	self.IsDead = true
-	
+
 	if self.IsShocked then
 		self.IsShocked = false
-		
+
 		local fx = EffectData()
 		fx:SetEntity(self)
 		fx:SetOrigin(self:LocalToWorld(Vector(0,0,50)))
@@ -696,9 +698,9 @@ function ENT:CommitDie()
 		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",43/30)
 		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",43/30)
 		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",43/30)
-		self:snd("darksouls/npc/fsb.frpg_c2300/s230012302.wav.mp3",5.4)		
+		self:snd("darksouls/npc/fsb.frpg_c2300/s230012302.wav.mp3",5.4)
 		self:PlaySequenceAndWait("2251")
-		
+
 		ParticleEffect("hunter_projectile_explosion_1",self:LocalToWorld(Vector(0,0,50)),Angle(0,0,0),nil)
 		self:snd("re2/em6200/step"..self:rnd(6)..".mp3",44/30)
 		self:snd("re2/em6200/land.mp3",72/30)
@@ -713,11 +715,11 @@ function ENT:CommitDie()
 		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",43/30)
 		self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",43/30)
 		self:PlaySequenceAndWait("2200")
-		
-		self:ResetSequence("2201")	
+
+		self:ResetSequence("2201")
 		coroutine.wait(30)
 	end
-	
+
 	self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",0)
 	self:snd("re2/em6200/foley_adjust_hat"..self:rnd(2)..".mp3",40/30)
 	self:snd("re2/em6200/step"..self:rnd(6)..".mp3",83/30)
@@ -725,7 +727,7 @@ function ENT:CommitDie()
 	self:snd("re2/em6200/step"..self:rnd(6)..".mp3",121/30)
 	self:snd("re2/em6200/foley_long"..self:rnd(2)..".mp3",121/30)
 	self:PlaySequenceAndWait("2202")
-	
+
 	self.CanAttack = true
 	if self:ShouldTurn() then
 		self:Turn()
@@ -736,14 +738,14 @@ function ENT:Initialize()
 	self:CustomInit()
 	self:SetHealth(self.health)
 	self:SetModel(self.Model)
-	self.LoseTargetDist	= 250000000 
-	self.SearchRadius 	= 999000000 
-	if SERVER then 
+	self.LoseTargetDist	= 250000000
+	self.SearchRadius 	= 999000000
+	if SERVER then
 		-- self:SetLagCompensated(true)
 		self.loco:SetStepHeight(35)
 		self.loco:SetAcceleration(900)
 		self.loco:SetDeceleration(900)
-	end 
+	end
 end
 
 function ENT:BodyUpdate()
@@ -779,55 +781,58 @@ function ENT:AcceptTarget(t)return IsValid(t) and (t:IsPlayer() or t:IsNPC())end
 function ENT:GetTarget()return self.Target end
 function ENT:SetTarget(ent)if self:AcceptTarget(ent) then self.Target = ent	return true else return false end end
 
-AccessorFunc(ENT, "m_bTargetLocked", "TargetLocked", FORCE_BOOL) 
+AccessorFunc(ENT, "m_bTargetLocked", "TargetLocked", FORCE_BOOL)
 -- Stops the Zombie from retargetting and keeps this target while it is valid and targetable
 function ENT:SetNextRetarget(time) self.NextRetarget = CurTime() + time end -- Sets the next time the Zombie will repath to its target
 function ENT:ForceRepath() self.NextRepath = 0 end
 
 function ENT:HaveTarget()
-	if (self:GetTarget() and IsValid(self:GetTarget())) then 
-		if (self:GetRangeTo(self:GetTarget():GetPos()) > self.LoseTargetDist or 700) then 
+	if (self:GetTarget() and IsValid(self:GetTarget())) then
+		if (self:GetRangeTo(self:GetTarget():GetPos()) > self.LoseTargetDist or 700) then
 			return self:FindTarget()
-		end 
-		return true 
-	else 
+		end
+		return true
+	else
 		return self:FindTarget()
-	end 
+	end
 end
 function ENT:FindTarget()
 	local pos, ang = self:GetBonePosition(179)
-	local _ents = ents.FindInCone(pos, ang:Forward(), self.SearchRadius or 700, math.cos(math.rad(90)))
-		for k,v in pairs(_ents) do 
-			if (v:IsPlayer() and v:Alive()) and self:AcceptTarget(v) then
-				local tr = util.TraceLine({
-					start=pos,
-					endpos=v:WorldSpaceCenter(),
-					filter=self
-				})
-				if tr.Hit and tr.Entity == v then
-					self:SetTarget(v) -- We have a direct LOS to the victim
-					return true 
-				else
-					self:SetTarget(nil)
-					return false
-				end
-			end 
-		end 
-	self:SetTarget(nil)self:CustomIdle()
-	return false 
+	local players = player.GetAll()
+	table.sort(players, function(ply1, ply2)
+		return self:GetRangeSquaredTo(ply1) < self:GetRangeSquaredTo(ply2)
+	end)
+	for i, ply in ipairs(players) do
+		if not ply:Alive() then continue end
+		if self:GetRangeSquaredTo(ply) > self.SearchRadius^2 then continue end
+		local deg = math.deg(math.acos((self:GetPos()+self:GetForward()-pos):GetNormalized():Dot((ply:WorldSpaceCenter()-pos):GetNormalized())))
+		if deg > 75 then continue end
+		if not self:AcceptTarget(ply) then continue end
+		local tr = util.TraceLine({
+			start=pos,
+			endpos=ply:WorldSpaceCenter(),
+			filter=self
+		})
+		if tr.Hit and tr.Entity == ply then
+			self:SetTarget(ply) -- We have a direct LOS to the victim
+			return true
+		end
+	end
+	self:SetTarget(nil)
+	return false
 end
 -----------------------------------------------------------------------------------------
 function ENT:SpawnIn()
 	if !SERVER then return end
 	local nav = navmesh.GetNearestNavArea(self:GetPos())
-	if !self:IsInWorld() or !IsValid(nav) or nav:GetClosestPointOnArea(self:GetPos()):DistToSqr(self:GetPos()) >= 10000 then 
+	if !self:IsInWorld() or !IsValid(nav) or nav:GetClosestPointOnArea(self:GetPos()):DistToSqr(self:GetPos()) >= 10000 then
 		for k,v in pairs(player.GetAll()) do
 			if (string.find(v:GetUserGroup(),"admin")) then
 				v:PrintMessage(HUD_PRINTTALK,"Nextbot ["..self:GetClass().."]["..self:EntIndex().."] spawned too far away from a navmesh!")
 			end
 		end
 		SafeRemoveEntity(self)
-	end 
+	end
 	self.FirstSpawn = true
 	self:OnSpawn()
 end
@@ -836,24 +841,24 @@ function ENT:RunBehaviour()
 		self:SpawnIn()
 	end
 	while (true) do
-		while #self.StuffToRunInCoroutine > 0 do 
-		-- Basically this can make the nextbot modify the coroutine outside it, 
-		-- you would just use table.insert and insert the function you want to call here, 
+		while #self.StuffToRunInCoroutine > 0 do
+		-- Basically this can make the nextbot modify the coroutine outside it,
+		-- you would just use table.insert and insert the function you want to call here,
 		-- thx Dragoteryx
 			local behaviour = self.StuffToRunInCoroutine[1]
 			table.remove(self.StuffToRunInCoroutine, 1)
 			behaviour()
 		end
-		if (self:HaveTarget()) then 
+		if (self:HaveTarget()) then
 			if self:ShouldTurn() then
 				self:Turn()
 			end
 			self:ChaseTarget()
-		else 
+		else
 			self:CustomIdle()
 			self:FindTarget()
 		end
-		coroutine.wait(2)
+		coroutine.yield()
 	end
 end
 
@@ -870,8 +875,8 @@ function ENT:ChaseTarget(options)
 	end
 	if (!path:IsValid()) then return "failed" end
 	while (path:IsValid() and self:HaveTarget()) do
-		
-		if (path:GetAge() > 0.1) then	
+
+		if (path:GetAge() > 0.1) then
 			if IsValid(self:GetTarget()) then
 				path:Compute(self, self:GetTarget():GetPos())
 			else
@@ -879,20 +884,20 @@ function ENT:ChaseTarget(options)
 				SafeRemoveEntity(self)
 			end
 		end
-		path:Update(self)	
+		path:Update(self)
 		if (options.draw) then path:Draw() end
 		if (self.loco:IsStuck()) then
 			self:HandleStuck()
 			return "stuck"
-		end	
-		
+		end
+
 		if self.CanAttack then self:DirectPoseParametersAt(self:GetTarget():GetPos(), "aim_pitch", "aim_yaw")end
 		if IsValid(navmesh.GetNearestNavArea(self:GetPos())) then
 			local pos = self:GetPos()
 			if table.Count(navmesh.GetNearestNavArea(pos):GetLadders()) > 0 then
 				local ladder = navmesh.GetNearestNavArea(pos):GetLadders()[1]
 				if pos:Distance(ladder:GetPosAtHeight(pos.z)) < 50 then
-					if path:GetClosestPosition(ladder:GetPosAtHeight(pos.z)):Distance(ladder:GetPosAtHeight(pos.z)) < 20 then 
+					if path:GetClosestPosition(ladder:GetPosAtHeight(pos.z)):Distance(ladder:GetPosAtHeight(pos.z)) < 20 then
 						-- We make sure the path at our height is actually close to the ladder
 						if self:GetPos():Distance(ladder:GetTop()) >= 50 then
 							self:ClimbLadder(ladder)
@@ -903,9 +908,9 @@ function ENT:ChaseTarget(options)
 				end
 			end
 		end
-		
+
 		self:CustomChaseTarget(self:GetTarget())
-		
+
 		coroutine.yield()
 	end
 	return "ok"
@@ -919,14 +924,14 @@ function ENT:ClimbLadder(ladder)
     pos = ladder:GetTop()
     -- vector = Vector(0,0,25).z
     vector = Vector(0,0,8).z
-	
+
 	self:SetPos(position+self:GetForward()*20)
 		for i=1,1000 do self.loco:FaceTowards(ladder:GetPosAtHeight(self:GetPos().z)) end
-		
+
 		local climb_left = false
 		local climb_right = false
-		
-		if IsValid(self) then 
+
+		if IsValid(self) then
 			climb_left = true
 			self.IsClimbingLadder = true
 			self.CanAttack = false
@@ -941,7 +946,7 @@ function ENT:ClimbLadder(ladder)
 			self:snd("re2/em6200/climb"..self:rnd(2)..".mp3",45/30)
 			self:PlaySequenceAndWait("ladder_start")
 		end
-		if IsValid(self) and self.IsClimbingLadder then 
+		if IsValid(self) and self.IsClimbingLadder then
 			if climb_left then
 				climb_left = false
 				climb_right = true
@@ -976,7 +981,7 @@ function ENT:ClimbLadder(ladder)
 				end
 			end
 			-- self:SetPos(ladder:GetPosAtHeight(vector +self:GetPos().z) + (self:GetForward()*-15))
-			if IsValid(self) and self.IsClimbingLadder then 
+			if IsValid(self) and self.IsClimbingLadder then
 				if climb_left then
 					climb_left = false
 					climb_right = true
@@ -1005,7 +1010,7 @@ function ENT:ClimbLadder(ladder)
 			end
 		end
 		if !self.IsClimbingLadder then return end
-		if IsValid(self) then 
+		if IsValid(self) then
 			if climb_left then
 				climb_left = false
 				climb_right = false
@@ -1060,7 +1065,7 @@ function ENT:Helper_Attack(victim,delay,sequence,damage,damageradius,hitsound)
 			if math.random(1,5) <= 3 then
 				self.CanTaunt = true
 			end
-			
+
 			-- unstuck code in-case the player is gay
 				if self:GetRangeTo(v:GetPos()) < 70 then
 					self:SetNotSolid(true)
@@ -1104,15 +1109,15 @@ function ENT:PlaySequenceAndSetPos(anim,mul)
 		local seq,dur = self:LookupSequence(anim)
 		local ga,gb,gc = self:GetSequenceMovement(seq,0,1)
 		if not ga then print("ga failed") return end -- The animation has no locomotion or it's invalid or we failed in some other way.
-				
+
 		local pos = self:GetPos()
 		local gd_prev = 0
 		local cbmin_prev = Vector(-14,-20,0)
 		local cbmax_prev = Vector(15,20,93)
-		
+
 		self:SetCollisionBounds(Vector(-1,-1,0), Vector(1,1,1))
-		
-		for i=1,dur*100 do 
+
+		for i=1,dur*100 do
 			timer.Simple(0.01*i,function()
 				if !IsValid(self) then return end
 				local gd_cur = self:GetCycle()
@@ -1120,13 +1125,13 @@ function ENT:PlaySequenceAndSetPos(anim,mul)
 				gd_prev = gd_cur
 
 				if (not ga2) or (gb2 == Vector(0,0,0)) or (gd_cur==0) or (!util.IsInWorld(self:LocalToWorld(gb2))) then return end
-				
+
 				local tr=util.TraceLine({
 				    start=self:LocalToWorld(gb2*mul)+Vector(0,0,10),
 				    endpos=self:LocalToWorld(gb2*mul),
 				    filter=self
 				})
-				
+
 				self:SetPos(tr.HitPos)
 				-- self:SetAngles(self:LocalToWorldAngles(gc2))
 			end)
@@ -1146,11 +1151,11 @@ function ENT:PlaySequenceAndSetAngles(anim)
 		local seq,dur = self:LookupSequence(anim)
 		local ga,gb,gc = self:GetSequenceMovement(seq,0,1)
 		if not ga then print("ga failed") return end -- The animation has no locomotion or it's invalid or we failed in some other way.
-				
+
 		local ang = self:GetAngles()
 		local gd_prev = 0
-		
-		for i=1,dur*100 do 
+
+		for i=1,dur*100 do
 			timer.Simple(0.01*i,function()
 				if !IsValid(self) then return end
 				local gd_cur = self:GetCycle()
@@ -1168,7 +1173,7 @@ function ENT:PlaySequenceAndSetAngles(anim)
 end
 function ENT:DirectPoseParametersAt(pos, pitch, yaw, center)
 	if isentity(pos) then
-		return self:DirectPoseParametersAt(pos:WorldSpaceCenter(), pitch, yaw)
+		return self:DirectPoseParametersAt(pos:WorldSpaceCenter(), pitch, yaw, center)
 	elseif isvector(pos) then
 		center = center or self:WorldSpaceCenter()
 		local angle = (pos - center):Angle()
@@ -1182,7 +1187,7 @@ end
 
 function ENT:Turn(pos)
 	if self.IsTurning then return end
-	
+
 	self.IsTurning = true
 		pos = pos or self:GetTarget():GetPos()
 		local ang1 = self:GetAngles()
@@ -1237,7 +1242,7 @@ function ENT:ShouldTurn(pos)
 	elseif ydif <= 315 and ydif >= 235 then
 		turn = true
 	end
-	
+
 	if turn == false then
 		self.loco:SetDesiredSpeed(self.Speed)
 		self:ResetSequence(self.WalkAnim)
