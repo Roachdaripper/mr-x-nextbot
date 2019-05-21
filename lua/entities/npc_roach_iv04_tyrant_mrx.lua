@@ -808,12 +808,7 @@ function ENT:FindTarget()
 		local deg = math.deg(math.acos((self:GetPos()+self:GetForward()-pos):GetNormalized():Dot((ply:WorldSpaceCenter()-pos):GetNormalized())))
 		if deg > 75 then continue end
 		if not self:AcceptTarget(ply) then continue end
-		local tr = util.TraceLine({
-			start=pos,
-			endpos=ply:WorldSpaceCenter(),
-			filter=self
-		})
-		if tr.Hit and tr.Entity == ply then
+		if self:Visible(ply) then
 			self:SetTarget(ply) -- We have a direct LOS to the victim
 			return true
 		end
