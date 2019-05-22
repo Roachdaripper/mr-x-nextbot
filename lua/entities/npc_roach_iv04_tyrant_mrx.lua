@@ -64,6 +64,7 @@ function ENT:InvestigateToPos(pos, options)
 	local path = Path("Follow")
 	path:SetMinLookAheadDistance(options.lookahead or 300)
 	path:SetGoalTolerance(options.tolerance or 20)
+	if !isvector(pos) then return "failed" end
 	path:Compute(self, pos)
 
 	if (!path:IsValid()) then return "failed" end
@@ -100,7 +101,7 @@ end
 
 function ENT:CustomIdle()
 	local playertarget = player.GetAll()[math.random(1,#player.GetAll())]
-	local pos = playertarget:GetPos() + Vector(math.random(-1, 1)*1000, math.random(-1, 1)*1000, math.random(-1, 1)*1000)
+	local pos = playertarget:GetPos() + Vector(math.random(-1, 1)*1000, math.random(-1, 1)*1000, 0)
 	local spots = navmesh.GetNearestNavArea(pos):GetCenter()
 
 	self.loco:SetDesiredSpeed(self.Speed)
@@ -141,16 +142,15 @@ function ENT:CustomInit()
 	self.Grab_IsGrabbing = false
 	self.Grab_DidSucceed = false -- Did we succeed in grabbing a bitch?
 
-	for i=3,117 do self:ManipulateBoneJiggle(i, 1) end
+	-- for i=3,117 do self:ManipulateBoneJiggle(i, 1) end
 
 	self:SetCollisionBounds(Vector(-14,-20,0), Vector(15,20,93))
 	if SERVER then
 		self:SetSolidMask(MASK_NPCSOLID)
 		self:SetName("nextbot_mrx"..self:EntIndex())
-		hook.Add("EntityCreated", self, self.AddToTableXCount)
-		hook.Add("EntityEmitSound", self, self.SelfGonHearYa)--function(tbl)
-			-- self:SelfGonHearYa(tbl)
-		-- end)
+		hook.Add("EntityEmitSound", self, function(TABLE)
+			self:SelfGonHearYa(TABLE)
+		end)
 	end
 end
 function ENT:OnSpawn()
@@ -252,9 +252,12 @@ function ENT:OnLandOnGround()
 	end
 end
 function ENT:CustomChaseTarget(target)
+	self:CommitDie()
 	self:Taunt()
 	self:Flinch()
-	self:CommitDie()
+	if GetConVar("ai_ignoreplayers"):GetBool() == true then
+		self:SetTarget(nil)
+	end
 
 	for k,v in pairs(ents.FindInSphere(self:GetPos(),70)) do
 		if (string.find(v:GetClass(),"prop_combine_ball")) then
@@ -803,7 +806,7 @@ function ENT:FindTarget()
 		local deg = math.deg(math.acos((self:GetPos()+self:GetForward()-pos):GetNormalized():Dot((ply:WorldSpaceCenter()-pos):GetNormalized())))
 		if deg > 75 then continue end
 		if not self:AcceptTarget(ply) then continue end
-		if self:Visible(ply) then
+		if self:Visible(ply) and GetConVar("ai_ignoreplayers"):GetBool() == false then
 			self:SetTarget(ply) -- We have a direct LOS to the victim
 			return true
 		end
