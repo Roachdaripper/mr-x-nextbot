@@ -51,7 +51,7 @@ if SERVER then
 		self:SetMaxHealth(self.health)
 		self:SetHealth(self.health)
 		self:SetCollisionBounds(Vector(-15, -15, 0), Vector(15, 15, 80))
-		for i=3, 117 do self:ManipulateBoneJiggle(i, 1) end
+		-- for i=3, 117 do self:ManipulateBoneJiggle(i, 1) end
 		self.SightMemory = {}
 		self.LastTurn = -1
 		table.insert(MrX_LIST, self)
