@@ -84,9 +84,7 @@ if SERVER then
 	-- Patrolling --
 
 	function ENT:Patrol()
-		print("mr x starting to patrol")
-		self:ResetSequence("0200")
-		self.loco:SetDesiredSpeed(105)
+		print("mr x starting to patrol")		
 		while not IsValid(self.Target) do
 			self:Investigate()
 			coroutine.yield()
@@ -95,6 +93,8 @@ if SERVER then
 
 	function ENT:Investigate()
 		print("mr x investigating to new pos")
+		self:ResetSequence("0200")
+		self.loco:SetDesiredSpeed(105)
 		local ply = player.GetAll()[math.random(1,#player.GetAll())]
 		local pos = ply:GetPos() + Vector(math.random(-1, 1)*1000, math.random(-1, 1)*1000, 0)
 		local path = Path("Follow")
@@ -104,6 +104,11 @@ if SERVER then
 			path:Update(self)
 			coroutine.yield()
 		end
+		self:Idle()
+	end
+
+	function ENT:Idle()
+		print("mr x idles")
 		self:ResetSequence("0000")
 		coroutine.wait(2)
 	end
