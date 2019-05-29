@@ -4,12 +4,10 @@ ENT.Base = "drgbase_nextbot" -- DO NOT TOUCH (obviously)
 -- Misc --
 ENT.Name = "Mr. X DrGBase"
 ENT.Category = "RE2 Nextbots"
-ENT.Models = {"models/roach/re2/tyrant_v6.mdl"}
+ENT.Models = {"models/roach/re2/tyrant_drg.mdl"}
 ENT.BloodColor = DONT_BLEED
 ENT.CollisionBounds = Vector(17.5, 17.5, 90)
 ENT.RagdollOnDeath = false
-ENT.OnSpawnSounds = {}
-ENT.OnAttackSounds = {}
 ENT.OnHitSounds = {
   "re2/em6200/attack_hit1.mp3",
   "re2/em6200/attack_hit2.mp3",
@@ -17,14 +15,9 @@ ENT.OnHitSounds = {
   "re2/em6200/attack_hit4.mp3",
   "re2/em6200/attack_hit5.mp3"
 }
-ENT.OnMissSounds = {}
-ENT.OnDamageSounds = {}
-ENT.DamageSoundDelay = 0.25
-ENT.OnDeathSounds = {}
 
 -- Stats --
-ENT.SpawnHealth = 50000
-ENT.HealthRegen = 0
+ENT.SpawnHealth = 5000
 ENT.ShoveResistance = true
 ENT.DamageMultipliers = {}
 
@@ -35,30 +28,21 @@ ENT.AttackRange = 50
 ENT.EnemyTooFar = 50
 ENT.EnemyTooClose = 0
 
--- Locomotion --
-ENT.Acceleration = 900
-ENT.Deceleration = 900
-ENT.JumpHeight = 58
-ENT.StepHeight = 35
-ENT.MaxYawRate = 250
-ENT.DeathDropHeight = 200
-ENT.AvoidObstacles = true
-
 -- Movements/animations --
 ENT.WalkSpeed = 105
 ENT.WalkAnimation = "0200"
 ENT.RunSpeed = 155
 ENT.RunAnimation = "0500"
 ENT.IdleAnimation = "0000"
-ENT.JumpAnimation = "0000"
+ENT.JumpAnimation = "1500"
 
 -- Climbing --
 ENT.ClimbLadders = true
 ENT.LaddersUpDistance = 40
-ENT.ClimbSpeed = 85
+ENT.ClimbSpeed = 70
 ENT.ClimbUpAnimation = "ladder_l"
 ENT.ClimbAnimRate = 1
-ENT.ClimbOffset = Vector(-20, 0, 0)
+ENT.ClimbOffset = Vector(-15, 0, 0)
 
 -- Detection --
 ENT.EyeBone = "Head"
@@ -72,12 +56,7 @@ ENT.PossessionViews = {
   {
     offset = Vector(0, 30, 20),
     distance = 100
-  }--[[,
-  {
-    offset = Vector(7.5, 0, 0),
-    distance = 0,
-    eyepos = true
-  }]]
+  }
 }
 ENT.PossessionBinds = {
   {
@@ -103,13 +82,6 @@ ENT.PossessionBinds = {
         self:Grab(ent)
       else self:Grab() end
     end
-  },
-  {
-    bind = IN_RELOAD,
-    coroutine = true,
-    onkeydown = function(self)
-      self:Electrocute()
-    end
   }
 }
 
@@ -125,24 +97,11 @@ if SERVER then
 		end)
 	end
 
-  function ENT:EmitStep()
-    self:EmitSound("re2/em6200/step"..math.random(5)..".mp3")
-  end
-
   -- Init/think --
 
   function ENT:CustomInitialize()
     self:SetDefaultRelationship(D_HT)
     self:AddPlayersRelationship(D_HT, 2)
-    self.RightLadder = false
-    self:LoopTimer(0.5, function()
-      self.RightLadder = not self.RightLadder
-      if self.RightLadder then
-        self.ClimbUpAnimation = "ladder_r"
-      else
-        self.ClimbUpAnimation = "ladder_l"
-      end
-    end)
     self:DefineSequenceCallback("ladder_l", 0.2, function()
       self:snd("re2/em6200/climb"..math.random(2)..".mp3",15/30)
     end)
@@ -160,9 +119,7 @@ if SERVER then
   end
 
   function ENT:Use()
-    self:CallInCoroutine(function()
-      self:Grab()
-    end)
+    self:SetHealth(1)
   end
 
   -- Attacks --
@@ -262,7 +219,7 @@ if SERVER then
 
   -- Animations --
 
-  function ENT:Electrocute(duration)
+  function ENT:Shock(duration)
     local fx = EffectData()
 		fx:SetEntity(self)
 		fx:SetOrigin(self:LocalToWorld(Vector(0,0,50)))
@@ -304,9 +261,14 @@ if SERVER then
   end
 
   function ENT:OneKnee(duration)
+    if isnumber(duration) and duration > 0 then
+      self:SetHealthRegen(math.ceil((self:GetMaxHealth()-self:Health())/duration))
+    end
     self:SetUpdateAnimation(false)
     self:ResetSequence("2201")
-    coroutine.wait(duration or 0)
+    while self:Health() < self:GetMaxHealth() do
+      self:YieldCoroutine(false)
+    end
     self:snd("re2/em6200/foley_long"..math.random(2)..".mp3",0)
   	self:snd("re2/em6200/foley_adjust_hat"..math.random(2)..".mp3",40/30)
   	self:snd("re2/em6200/step"..math.random(6)..".mp3",83/30)
@@ -315,9 +277,11 @@ if SERVER then
   	self:snd("re2/em6200/foley_long"..math.random(2)..".mp3",121/30)
     self:PlaySequenceAndMove("2202")
     self:SetUpdateAnimation(true)
+    self:SetHealthRegen(0)
   end
 
   function ENT:Turn(pos, subs)
+    if self:IsDown() then return end
     local direction = self:CalcPosDirection(pos, subs)
     if direction == "W" then
       self:snd("re2/em6200/step"..math.random(5)..".mp3",20/30)
@@ -412,38 +376,50 @@ if SERVER then
 
   function ENT:OnCombineBall(ball)
     ball:Fire("explode", 0)
-    self:CallInCoroutine(function(self, delay)
-      if delay < 0.1 then self:Stun() end
-    end)
     return true
+  end
+
+  function ENT:OnLandOnGround()
+    self:CallInCoroutine(function(self, delay)
+      if delay > 0.1 then return end
+      self:snd("re2/em6200/step"..math.random(5)..".mp3",0)
+      self:PlaySequenceAndMove("1750")
+    end)
   end
 
   -- Damage related stuff --
 
   function ENT:OnTakeDamage(dmg)
+    if dmg:IsDamageType(DMG_BLAST) then dmg:ScaleDamage(10) end
     if IsValid(dmg:GetAttacker()) and dmg:GetAttacker():IsPlayer() then
 			local hitgroup = dmg:GetAttacker():GetEyeTrace().HitGroup
-			if hitgroup == HITGROUP_HEAD and not self.ShotOffHat then
-				self:SetBodygroup(2,1)
-				local hat = ents.Create("prop_physics")
-				hat:SetModel("models/roach/re2/tyrant_hat.mdl")
-				hat:SetPos(self:GetAttachment(2).Pos)
-				hat:SetAngles(self:GetAngles())
-				hat:Spawn()
-				hat:SetCollisionGroup(COLLISION_GROUP_WEAPON)
-				self:DeleteOnRemove(hat)
-				local phys = hat:GetPhysicsObject()
-				phys:SetVelocity((self:GetForward()*-150) + (self:GetUp()*150))
-				phys:AddAngleVelocity(Vector(0, 500, 0))
-				self.ShotOffHat = true
+			if hitgroup == HITGROUP_HEAD then
+        if not self.ShotOffHat then
+          self:SetBodygroup(2,1)
+  				local hat = ents.Create("prop_physics")
+  				hat:SetModel("models/roach/re2/tyrant_hat.mdl")
+  				hat:SetPos(self:GetAttachment(2).Pos)
+  				hat:SetAngles(self:GetAngles())
+  				hat:Spawn()
+  				hat:SetCollisionGroup(COLLISION_GROUP_WEAPON)
+  				self:DeleteOnRemove(hat)
+  				local phys = hat:GetPhysicsObject()
+  				phys:SetVelocity((self:GetForward()*-150) + (self:GetUp()*150))
+  				phys:AddAngleVelocity(Vector(0, 500, 0))
+  				self.ShotOffHat = true
+        end
+        return 2
 			end
     end
-    return not dmg:IsDamageType(DMG_BLAST)
   end
 
-  function ENT:AfterTakeDamage(dmg, delay)
-    if delay > 0.1 then return end
-    self:Stun()
+  function ENT:OnFatalDamage()
+    return true
+  end
+  function ENT:OnDowned(dmg)
+    if dmg:IsDamageType(DMG_SHOCK) then
+      self:Shock(30)
+    else self:Stun(30) end
   end
 
   -- Possession --
@@ -469,9 +445,19 @@ if SERVER then
     self:PlaySequenceAndMoveAbsolute("ladder_start", 1, function()
       self:FaceTowards(ladder:GetBottom())
     end)
+    self.RightLadder = false
+    self:LoopTimer(0.5, function()
+      if not self:IsClimbing() then return false end
+      self.RightLadder = not self.RightLadder
+      if self.RightLadder then
+        self.ClimbUpAnimation = "ladder_r"
+      else
+        self.ClimbUpAnimation = "ladder_l"
+      end
+    end)
   end
   function ENT:WhileClimbing(ladder, left)
-
+    if left < 100 then return true end
   end
   function ENT:OnStopClimbing()
     if self.RightLadder then
