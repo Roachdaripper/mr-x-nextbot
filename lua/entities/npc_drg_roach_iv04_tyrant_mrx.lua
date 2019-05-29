@@ -63,6 +63,8 @@ ENT.PossessionBinds = {
     bind = IN_ATTACK,
     coroutine = true,
     onkeydown = function(self)
+      self:Turn(self:GetPos() + self:PossessorNormal())
+      self:FaceTowards(self:GetPos() + self:PossessorNormal())
       self["Punch"..math.random(2)](self)
     end
   },
@@ -70,6 +72,8 @@ ENT.PossessionBinds = {
     bind = IN_ATTACK2,
     coroutine = true,
     onkeydown = function(self)
+      self:Turn(self:GetPos() + self:PossessorNormal())
+      self:FaceTowards(self:GetPos() + self:PossessorNormal())
       self["Punch"..math.random(3, 4)](self)
     end
   },
@@ -77,6 +81,8 @@ ENT.PossessionBinds = {
     bind = IN_JUMP,
     coroutine = true,
     onkeydown = function(self)
+      self:Turn(self:GetPos() + self:PossessorNormal())
+      self:FaceTowards(self:GetPos() + self:PossessorNormal())
       local ent = self:GetClosestEnemy()
       if IsValid(ent) and ent:IsPlayer() then
         self:Grab(ent)
