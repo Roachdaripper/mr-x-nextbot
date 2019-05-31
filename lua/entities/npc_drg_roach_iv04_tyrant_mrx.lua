@@ -117,6 +117,7 @@ if SERVER then
     self.ShotOffHat = false
   end
   function ENT:CustomThink()
+    self:RemoveAllDecals()
     if self:IsPossessed() then
       self:DirectPoseParametersAt(self:PossessorTrace().HitPos, "aim_pitch", "aim_yaw", self:EyePos())
     elseif self:HasEnemy() and self:IsInSight(self:GetEnemy()) then
