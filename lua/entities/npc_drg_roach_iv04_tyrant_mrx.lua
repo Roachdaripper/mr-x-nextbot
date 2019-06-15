@@ -2,19 +2,12 @@ if not DrGBase then return end -- return if DrGBase isn't installed
 ENT.Base = "drgbase_nextbot" -- DO NOT TOUCH (obviously)
 
 -- Misc --
-ENT.Name = "Mr. X DrGBase"
+ENT.PrintName = "Mr. X DrGBase"
 ENT.Category = "RE2 Nextbots"
 ENT.Models = {"models/roach/re2/tyrant_drg.mdl"}
 ENT.BloodColor = DONT_BLEED
 ENT.CollisionBounds = Vector(17.5, 17.5, 90)
 ENT.RagdollOnDeath = false
-ENT.OnHitSounds = {
-  "re2/em6200/attack_hit1.mp3",
-  "re2/em6200/attack_hit2.mp3",
-  "re2/em6200/attack_hit3.mp3",
-  "re2/em6200/attack_hit4.mp3",
-  "re2/em6200/attack_hit5.mp3"
-}
 
 -- Stats --
 ENT.SpawnHealth = 5000
@@ -22,11 +15,13 @@ ENT.ShoveResistance = true
 ENT.DamageMultipliers = {}
 
 -- AI --
+ENT.MeleeAttackRange = 50
+ENT.ReachEnemyRange = 50
+ENT.AvoidEnemyRange = 0
+
+-- Relationships --
 ENT.Factions = {"FACTION_MRX"}
 ENT.Frightening = true
-ENT.AttackRange = 50
-ENT.EnemyTooFar = 50
-ENT.EnemyTooClose = 0
 
 -- Movements/animations --
 ENT.WalkSpeed = 105
@@ -59,35 +54,38 @@ ENT.PossessionViews = {
   }
 }
 ENT.PossessionBinds = {
-  {
-    bind = IN_ATTACK,
-    coroutine = true,
-    onkeydown = function(self)
-      self:Turn(self:GetPos() + self:PossessorNormal())
-      self:FaceTowards(self:GetPos() + self:PossessorNormal())
-      self["Punch"..math.random(2)](self)
-    end
+  [IN_ATTACK] = {
+    {
+      coroutine = true,
+      onkeydown = function(self)
+        self:Turn(self:GetPos() + self:PossessorNormal())
+        self:FaceTowards(self:GetPos() + self:PossessorNormal())
+        self["Punch"..math.random(2)](self)
+      end
+    }
   },
-  {
-    bind = IN_ATTACK2,
-    coroutine = true,
-    onkeydown = function(self)
-      self:Turn(self:GetPos() + self:PossessorNormal())
-      self:FaceTowards(self:GetPos() + self:PossessorNormal())
-      self["Punch"..math.random(3, 4)](self)
-    end
+  [IN_ATTACK2] = {
+    {
+      coroutine = true,
+      onkeydown = function(self)
+        self:Turn(self:GetPos() + self:PossessorNormal())
+        self:FaceTowards(self:GetPos() + self:PossessorNormal())
+        self["Punch"..math.random(3, 4)](self)
+      end
+    }
   },
-  {
-    bind = IN_JUMP,
-    coroutine = true,
-    onkeydown = function(self)
-      self:Turn(self:GetPos() + self:PossessorNormal())
-      self:FaceTowards(self:GetPos() + self:PossessorNormal())
-      local ent = self:GetClosestEnemy()
-      if IsValid(ent) and ent:IsPlayer() then
-        self:Grab(ent)
-      else self:Grab() end
-    end
+  [IN_JUMP] = {
+    {
+      coroutine = true,
+      onkeydown = function(self)
+        self:Turn(self:GetPos() + self:PossessorNormal())
+        self:FaceTowards(self:GetPos() + self:PossessorNormal())
+        local ent = self:GetClosestEnemy()
+        if IsValid(ent) and ent:IsPlayer() then
+          self:Grab(ent)
+        else self:Grab() end
+      end
+    }
   }
 }
 
@@ -108,13 +106,17 @@ if SERVER then
   function ENT:CustomInitialize()
     self:SetDefaultRelationship(D_HT)
     self:AddPlayersRelationship(D_HT, 2)
-    self:DefineSequenceCallback("ladder_l", 0.2, function()
+    self:SequenceEvent("ladder_l", 0.2, function()
       self:snd("re2/em6200/climb"..math.random(2)..".mp3",15/30)
     end)
-    self:DefineSequenceCallback("ladder_r", 0.25, function()
+    self:SequenceEvent("ladder_r", 0.25, function()
       self:snd("re2/em6200/climb"..math.random(2)..".mp3",15/30)
     end)
     self.ShotOffHat = false
+    self:SetAttack("3000", true)
+    self:SetAttack("3001", true)
+    self:SetAttack("3002", true)
+    self:SetAttack("3003", true)
   end
   function ENT:CustomThink()
     self:RemoveAllDecals()
@@ -131,46 +133,62 @@ if SERVER then
 
   -- Attacks --
 
+  local attackSounds = {
+    "re2/em6200/attack_hit1.mp3",
+    "re2/em6200/attack_hit2.mp3",
+    "re2/em6200/attack_hit3.mp3",
+    "re2/em6200/attack_hit4.mp3",
+    "re2/em6200/attack_hit5.mp3"
+  }
+  local function OnAttack(self, hit)
+    if #hit == 0 then return end
+    self:EmitSound(attackSounds[math.random(#attackSounds)])
+  end
+
   function ENT:Punch1()
     self:snd("re2/em6200/attack_swing"..math.random(5)..".mp3",0.1)
     self:snd("re2/em6200/attack_swing"..math.random(5)..".mp3",0.5)
     self:snd("re2/em6200/step"..math.random(5)..".mp3",2.6)
-    self:Attack({{
+    self:Attack({
       damage = 50,
       delay = 1,
       viewpunch = Angle(40, 0, 0)
-    }}, {animation = "3000"})
+    }, OnAttack)
+    self:PlaySequenceAndMove("3000")
   end
   function ENT:Punch2()
     self:snd("re2/em6200/attack_swing"..math.random(5)..".mp3",0.1)
     self:snd("re2/em6200/attack_swing"..math.random(5)..".mp3",0.5)
     self:snd("re2/em6200/step"..math.random(5)..".mp3",2.8)
     self:snd("re2/em6200/step"..math.random(5)..".mp3",3.2)
-    self:Attack({{
+    self:Attack({
       damage = 50,
       delay = 1,
       viewpunch = Angle(40, 0, 0)
-    }}, {animation = "3001"})
+    }, OnAttack)
+    self:PlaySequenceAndMove("3001")
   end
   function ENT:Punch3()
     self:snd("re2/em6200/attack_swing"..math.random(5)..".mp3",0.1)
     self:snd("re2/em6200/step"..math.random(5)..".mp3",2)
     self:snd("re2/em6200/step"..math.random(5)..".mp3",2.4)
-    self:Attack({{
+    self:Attack({
       damage = 30,
       delay = 0.5,
       viewpunch = Angle(20, 20, 0)
-    }}, {animation = "3002"})
+    }, OnAttack)
+    self:PlaySequenceAndMove("3002")
   end
   function ENT:Punch4()
     self:snd("re2/em6200/attack_swing"..math.random(5)..".mp3",0.1)
     self:snd("re2/em6200/step"..math.random(5)..".mp3",2)
     self:snd("re2/em6200/step"..math.random(5)..".mp3",2.6)
-    self:Attack({{
+    self:Attack({
       damage = 30,
       delay = 0.5,
       viewpunch = Angle(20, -20, 0)
-    }}, {animation = "3003"})
+    }, OnAttack)
+    self:PlaySequenceAndMove("3003")
   end
   function ENT:Punch()
     self["Punch"..math.random(4)](self)
@@ -319,10 +337,11 @@ if SERVER then
     return self:HasEnemy() and self.ShotOffHat
   end
 
-  function ENT:OnAttack(enemy)
+  function ENT:OnMeleeAttack(enemy)
     for i = 1, 1000 do self:FaceTowards(enemy) end
-    if enemy:IsPlayer() and math.random(5) == 1 then self:Grab(enemy)
-    else self:Punch() end
+    --[[if enemy:IsPlayer() and math.random(5) == 1 then self:Grab(enemy)
+    else self:Punch() end]]
+    self:Punch()
     if self:HasEnemy() and self:Visible(self:GetEnemy()) then
       self:Turn(self:GetEnemy():GetPos())
     end
@@ -339,6 +358,10 @@ if SERVER then
     if not IsValid(oldenemy) or (oldenemy:IsPlayer() and not oldenemy:Alive()) then
       self:OnNewEnemy(newenemy)
     end
+  end
+  function ENT:OnLastEnemy(enemy)
+    if not IsValid(enemy) then return end
+    self:AddPatrolPos(enemy:GetPos(), 1)
   end
 
   function ENT:OnReachedPatrol(pos)
