@@ -4,7 +4,7 @@ ENT.Base = "drgbase_nextbot" -- DO NOT TOUCH (obviously)
 -- Misc --
 ENT.PrintName = "Mr. X DrGBase"
 ENT.Category = "RE2 Nextbots"
-ENT.Models = {"models/roach/re2/tyrant_drg.mdl"}
+ENT.Models = {"models/roach/re2/tyrant_drg1.mdl"}
 ENT.BloodColor = DONT_BLEED
 ENT.CollisionBounds = Vector(17.5, 17.5, 90)
 ENT.RagdollOnDeath = false
@@ -32,6 +32,9 @@ ENT.IdleAnimation = "0000"
 ENT.JumpAnimation = "1500"
 
 -- Climbing --
+ENT.ClimbLedges = true
+ENT.ClimbLedgesMaxHeight = 300
+ENT.LedgeDetectionDistance = 50
 ENT.ClimbLadders = true
 ENT.LaddersUpDistance = 40
 ENT.ClimbSpeed = 70
@@ -125,10 +128,6 @@ if SERVER then
     elseif self:HasEnemy() and self:IsInSight(self:GetEnemy()) then
       self:DirectPoseParametersAt(self:GetEnemy():GetPos(), "aim_pitch", "aim_yaw", self:EyePos())
     else self:DirectPoseParametersAt(nil, "aim_pitch", "aim_yaw", self:EyePos()) end
-  end
-
-  function ENT:Use()
-    self:SetHealth(1)
   end
 
   -- Attacks --
@@ -468,23 +467,27 @@ if SERVER then
 
   -- Climbing --
 
-  function ENT:OnStartClimbing(ladder)
-    self:snd("re2/em6200/step"..math.random(5)..".mp3",12/30)
-    self:snd("re2/em6200/climb"..math.random(2)..".mp3",25/30)
-    self:snd("re2/em6200/climb"..math.random(2)..".mp3",45/30)
-    self:PlaySequenceAndMoveAbsolute("ladder_start", 1, function()
-      self:FaceTowards(ladder:GetBottom())
-    end)
-    self.RightLadder = false
-    self:LoopTimer(0.5, function()
-      if not self:IsClimbing() then return false end
-      self.RightLadder = not self.RightLadder
-      if self.RightLadder then
-        self.ClimbUpAnimation = "ladder_r"
-      else
-        self.ClimbUpAnimation = "ladder_l"
-      end
-    end)
+  function ENT:OnStartClimbing(ladder, height)
+    if not isvector(ladder) then
+      self:snd("re2/em6200/step"..math.random(5)..".mp3",12/30)
+      self:snd("re2/em6200/climb"..math.random(2)..".mp3",25/30)
+      self:snd("re2/em6200/climb"..math.random(2)..".mp3",45/30)
+      self:PlaySequenceAndMoveAbsolute("ladder_start", 1, function()
+        if isvector(ladder) then
+          self:FaceTowards(ladder)
+        else self:FaceTowards(ladder:GetBottom()) end
+      end)
+      self.RightLadder = false
+      self:LoopTimer(0.5, function()
+        if not self:IsClimbing() then return false end
+        self.RightLadder = not self.RightLadder
+        if self.RightLadder then
+          self.ClimbUpAnimation = "ladder_r"
+        else
+          self.ClimbUpAnimation = "ladder_l"
+        end
+      end)
+    else return true end
   end
   function ENT:WhileClimbing(ladder, left)
     if left < 100 then return true end
@@ -507,6 +510,10 @@ if SERVER then
       self:snd("re2/em6200/step"..math.random(5)..".mp3",60/30)
       self:PlaySequenceAndMoveAbsolute("ladder_finish_l")
     end
+  end
+  function ENT:CustomClimbing(ledge, height)
+    self:FaceTo(ledge)
+    self:PlayClimbSequence("drg_climb", 225, height)
   end
 
 else
