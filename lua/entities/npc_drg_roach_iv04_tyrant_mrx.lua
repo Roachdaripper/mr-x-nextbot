@@ -199,7 +199,7 @@ if SERVER then
     self:snd("re2/em6200/attack_swing"..math.random(5)..".mp3",0)
     self:snd("re2/em6200/step"..math.random(5)..".mp3",13/30)
     self:snd("re2/em6200/attack_swing"..math.random(5)..".mp3",13/30)
-    self:PlaySequenceAndMove("ragdoll_grabA", 1, function(cycle)
+    self:PlaySequenceAndMove("ragdoll_grabA", 1, function(self, cycle)
       if grabbed or cycle < 0.5 then return end
       grabbed = true
       if not IsValid(ent) then return end
@@ -515,7 +515,7 @@ if SERVER then
   end
   function ENT:CustomClimbing(ledge, height)
     self:FaceTo(ledge)
-    self:PlayClimbSequence("drg_climb", 206.75, height)
+    self:PlayClimbSequence("drg_climb", height)
   end
 
 end
