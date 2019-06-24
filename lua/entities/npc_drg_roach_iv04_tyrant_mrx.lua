@@ -35,6 +35,7 @@ ENT.JumpAnimation = "1500"
 ENT.ClimbLedges = true
 ENT.ClimbLedgesMaxHeight = 300
 ENT.LedgeDetectionDistance = 50
+ENT.ClimbProps = true
 ENT.ClimbLadders = true
 ENT.LaddersUpDistance = 40
 ENT.ClimbSpeed = 70
@@ -104,7 +105,7 @@ if SERVER then
 		end)
 	end
 
-  -- Init/think --
+  -- Init/Think --
 
   function ENT:CustomInitialize()
     self:SetDefaultRelationship(D_HT)
@@ -241,7 +242,7 @@ if SERVER then
     end
   end
 
-  -- Animations --
+  -- Downed --
 
   function ENT:Shock(duration)
     local fx = EffectData()
@@ -288,8 +289,8 @@ if SERVER then
     if isnumber(duration) and duration > 0 then
       self:SetHealthRegen(math.ceil((self:GetMaxHealth()-self:Health())/duration))
     end
-    self:SetUpdateAnimation(false)
     self:ResetSequence("2201")
+    self:SetPlaybackRate(1)
     while self:Health() < self:GetMaxHealth() do
       self:YieldCoroutine(false)
     end
@@ -300,34 +301,7 @@ if SERVER then
   	self:snd("re2/em6200/step"..math.random(6)..".mp3",121/30)
   	self:snd("re2/em6200/foley_long"..math.random(2)..".mp3",121/30)
     self:PlaySequenceAndMove("2202")
-    self:SetUpdateAnimation(true)
     self:SetHealthRegen(0)
-  end
-
-  function ENT:Turn(pos, subs)
-    if self:IsDown() then return end
-    local direction = self:CalcPosDirection(pos, subs)
-    if direction == "W" then
-      self:snd("re2/em6200/step"..math.random(5)..".mp3",20/30)
-      self:snd("re2/em6200/step"..math.random(5)..".mp3",33/30)
-      self:PlaySequenceAndMove("turn_90left")
-      self.LastTurn = CurTime()
-    elseif direction == "E" then
-      self:snd("re2/em6200/step"..math.random(5)..".mp3",20/30)
-      self:snd("re2/em6200/step"..math.random(5)..".mp3",33/30)
-      self:PlaySequenceAndMove("turn_90right")
-      self.LastTurn = CurTime()
-    elseif direction == "S" and math.random(2) == 1 then
-      self:snd("re2/em6200/step"..math.random(5)..".mp3",33/30)
-      self:snd("re2/em6200/step"..math.random(5)..".mp3",50/30)
-      self:PlaySequenceAndMove("turn_180left")
-      self.LastTurn = CurTime()
-    elseif direction == "S" then
-      self:snd("re2/em6200/step"..math.random(5)..".mp3",33/30)
-      self:snd("re2/em6200/step"..math.random(5)..".mp3",50/30)
-      self:PlaySequenceAndMove("turn_180right")
-      self.LastTurn = CurTime()
-    end
   end
 
   -- AI --
@@ -378,7 +352,41 @@ if SERVER then
     self:AddPatrolPos(navmesh.GetNearestNavArea(pos):GetClosestPointOnArea(pos))
   end
 
-  -- Misc --
+  -- Animations --
+
+  function ENT:Turn(pos, subs)
+    if self:IsDown() then return end
+    local direction = self:CalcPosDirection(pos, subs)
+    if direction == "W" then
+      self:snd("re2/em6200/step"..math.random(5)..".mp3",20/30)
+      self:snd("re2/em6200/step"..math.random(5)..".mp3",33/30)
+      self:PlaySequenceAndMove("turn_90left")
+      self.LastTurn = CurTime()
+    elseif direction == "E" then
+      self:snd("re2/em6200/step"..math.random(5)..".mp3",20/30)
+      self:snd("re2/em6200/step"..math.random(5)..".mp3",33/30)
+      self:PlaySequenceAndMove("turn_90right")
+      self.LastTurn = CurTime()
+    elseif direction == "S" and math.random(2) == 1 then
+      self:snd("re2/em6200/step"..math.random(5)..".mp3",33/30)
+      self:snd("re2/em6200/step"..math.random(5)..".mp3",50/30)
+      self:PlaySequenceAndMove("turn_180left")
+      self.LastTurn = CurTime()
+    elseif direction == "S" then
+      self:snd("re2/em6200/step"..math.random(5)..".mp3",33/30)
+      self:snd("re2/em6200/step"..math.random(5)..".mp3",50/30)
+      self:PlaySequenceAndMove("turn_180right")
+      self.LastTurn = CurTime()
+    end
+  end
+
+  function ENT:OnLandOnGround()
+    self:CallInCoroutine(function(self, delay)
+      if delay > 0.1 then return end
+      self:snd("re2/em6200/step"..math.random(5)..".mp3",0)
+      self:PlaySequenceAndMove("1750")
+    end)
+  end
 
   function ENT:OnSpawn()
     local tr = util.TraceLine({
@@ -403,20 +411,14 @@ if SERVER then
 		self:PlaySequenceAndMove("nzu_intro_land")
   end
 
+  -- Misc --
+
   function ENT:OnCombineBall(ball)
     ball:Fire("explode", 0)
     return true
   end
 
-  function ENT:OnLandOnGround()
-    self:CallInCoroutine(function(self, delay)
-      if delay > 0.1 then return end
-      self:snd("re2/em6200/step"..math.random(5)..".mp3",0)
-      self:PlaySequenceAndMove("1750")
-    end)
-  end
-
-  -- Damage related stuff --
+  -- Damage --
 
   function ENT:OnTakeDamage(dmg)
     if dmg:IsDamageType(DMG_BLAST) then dmg:ScaleDamage(10) end
@@ -513,14 +515,8 @@ if SERVER then
   end
   function ENT:CustomClimbing(ledge, height)
     self:FaceTo(ledge)
-    self:PlayClimbSequence("drg_climb", 225, height)
+    self:PlayClimbSequence("drg_climb", 206.75, height)
   end
-
-else
-
-  function ENT:CustomInitialize() end
-  function ENT:CustomThink() end
-  function ENT:CustomDraw() end
 
 end
 
