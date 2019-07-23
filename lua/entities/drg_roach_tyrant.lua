@@ -4,7 +4,7 @@ ENT.Base = "drgbase_nextbot" -- DO NOT TOUCH (obviously)
 -- Misc --
 ENT.PrintName = "Mr. X"
 ENT.Category = "RE2 Nextbots"
-ENT.Models = {"models/roach/re2/tyrant_drg1.mdl"}
+ENT.Models = {"models/roach/re2/drg_tyrant.mdl"}
 ENT.BloodColor = BLOOD_COLOR_MECH
 ENT.CollisionBounds = Vector(17.5, 17.5, 90)
 ENT.RagdollOnDeath = false
@@ -32,7 +32,7 @@ ENT.JumpAnimation = "1000"
 
 -- Climbing --
 ENT.ClimbLedges = true
-ENT.ClimbLedgesMaxHeight = 300
+ENT.ClimbLedgesMaxHeight = math.huge
 ENT.LedgeDetectionDistance = 20
 ENT.ClimbProps = true
 ENT.ClimbLadders = true
@@ -66,9 +66,18 @@ ENT.PossessionBinds = {
 		{
 			coroutine = true,
 			onkeydown = function(self)
-				self:Turn(self:GetPos() + self:PossessorNormal())
-				self:FaceTowards(self:GetPos() + self:PossessorNormal())
-				self:PlaySequenceAndMove("300"..math.random(0,3))
+				local direction = self:CalcPosDirection(self:GetPos() + self:PossessorNormal(),false)
+				if direction == "W" then
+					self:PlaySequenceAndMove("3100_l",1)
+				elseif direction == "E" then
+					self:PlaySequenceAndMove("3100_r",1)
+				else
+					if self:GetPossessor():KeyDown(IN_FORWARD) then
+						self:PlaySequenceAndMove("310"..math.random(2),1,self.PossessionFaceForward)
+					else
+						self:PlaySequenceAndMove("300"..math.random(2,3),1,self.PossessionFaceForward)
+					end
+				end
 			end
 		}
 	},
@@ -94,6 +103,27 @@ ENT.PossessionBinds = {
 				end
 			end
 		}
+	},
+	[IN_JUMP] = {
+		{
+			coroutine = true,
+			onkeydown = function(self)
+				local a = self:TraceHull(self:GetForward())
+				
+				if a.Hit then 
+					local ca,cb = a.Entity:GetCollisionBounds()
+					if (cb.z <= 50) and (string.find(a.Entity:GetClass(),"prop_") and not string.find(a.Entity:GetClass(),"door")) then
+						-- local right = self:GetRight()
+						self:PlaySequenceAndMove("drg_vault_barricade",{rate=1,gravity=true,collisions=false})
+						-- for i=1,100 do self:FaceTowards(self:GetPos()+right) end
+					else
+						self:PlaySequenceAndMove("drg_jump_gap",{rate=1,gravity=false,collisions=true},self.PossessionFaceForward)
+					end
+				else
+					self:PlaySequenceAndMove("drg_jump_gap",{stoponcollide=true,gravity=false,collisions=true},self.PossessionFaceForward)
+				end
+			end
+		}
 	}
 }
 
@@ -104,6 +134,16 @@ if SERVER then
 function ENT:snd(a)
 	self:EmitSound(a)
 	self:EmitSound("re2/em6200/foley_long"..math.random(2)..".mp3")
+end
+function ENT:AttackFunction()
+	self:Attack({
+		damage = self:IsPossessed() and 800 or 50,
+		viewpunch = Angle(40, 0, 0),
+		type = DMG_CLUB,range=128,angle=135,
+	}, function(self, hit)
+		if #hit == 0 then return end 
+		self:snd("re2/em6200/attack_hit"..math.random(5)..".mp3")
+	end)
 end
 
 -- Init/Think --
@@ -126,71 +166,19 @@ function ENT:CustomInitialize()
 	
 	self:SequenceEvent("3000",{0.028301886792453,0.14150943396226},function()self:snd("re2/em6200/attack_swing"..math.random(5)..".mp3")end)
 	self:SequenceEvent("3000",{0.056603773584906,0.23584905660377, 0.75471698113208},stepsnd)
-	self:SequenceEvent("3000",0.25471698113208,function()
-		self:Attack({
-			damage = self:IsPossessed() and 800 or 50,
-			viewpunch = Angle(40, 0, 0),
-			type = DMG_CLUB,
-		}, function(self, hit)
-			if #hit == 0 then return end 
-			self:EmitSound("re2/em6200/attack_hit"..math.random(5)..".mp3")
-			local ent = self:GetClosestEnemy()
-			if ent:IsNPC() or (math.random(1,5) <= 3) then
-				self:Taunt()
-			end
-		end)
-	end)
+	self:SequenceEvent("3000",0.25471698113208,self.AttackFunction)
 	
 	self:SequenceEvent("3001",{0.027522935779817,0.13761467889908},function()self:snd("re2/em6200/attack_swing"..math.random(5)..".mp3")end)
 	self:SequenceEvent("3001",{0.055045871559633,0.22935779816514, 0.75229357798165,0.88990825688073},stepsnd)
-	self:SequenceEvent("3001",0.24770642201835,function()
-		self:Attack({
-			damage = self:IsPossessed() and 800 or 50,
-			viewpunch = Angle(40, 0, 0),
-			type = DMG_CLUB,
-		}, function(self, hit)
-			if #hit == 0 then return end 
-			self:EmitSound("re2/em6200/attack_hit"..math.random(5)..".mp3")
-			local ent = self:GetClosestEnemy()
-			if ent:IsNPC() or (math.random(1,5) <= 3) then
-				self:Taunt()
-			end
-		end)
-	end)
+	self:SequenceEvent("3001",0.24770642201835,self.AttackFunction)
 	
 	self:SequenceEvent("3002",0.03448275862069,function()self:snd("re2/em6200/attack_swing"..math.random(5)..".mp3")end)
 	self:SequenceEvent("3002",{0.11494252873563,0.2183908045977,0.5632183908046,0.74712643678161},stepsnd)
-	self:SequenceEvent("3002",0.17241379310345,function()
-		self:Attack({
-			damage = self:IsPossessed() and 800 or 30,
-			viewpunch = Angle(20, 20, 0),
-			type = DMG_CLUB,
-		}, function(self, hit)
-			if #hit == 0 then return end 
-			self:EmitSound("re2/em6200/attack_hit"..math.random(5)..".mp3")
-			local ent = self:GetClosestEnemy()
-			if ent:IsNPC() or (math.random(1,5) <= 3) then
-				self:Taunt()
-			end
-		end)
-	end)
+	self:SequenceEvent("3002",0.17241379310345,self.AttackFunction)
 	
 	self:SequenceEvent("3003",0.035294117647059,function()self:snd("re2/em6200/attack_swing"..math.random(5)..".mp3")end)
 	self:SequenceEvent("3003", {0.082352941176471, 0.2, 0.64705882352941, 0.88235294117647},stepsnd)
-	self:SequenceEvent("3003",0.14117647058824,function()
-		self:Attack({
-			damage = self:IsPossessed() and 800 or 30,
-			viewpunch = Angle(20, -20, 0),
-			type = DMG_CLUB,
-		}, function(self, hit)
-			if #hit == 0 then return end 
-			self:EmitSound("re2/em6200/attack_hit"..math.random(5)..".mp3")
-			local ent = self:GetClosestEnemy()
-			if ent:IsNPC() or (math.random(1,5) <= 3) then
-				self:Taunt()
-			end
-		end)
-	end)
+	self:SequenceEvent("3003",0.14117647058824,self.AttackFunction)
 	
 	self:SequenceEvent("ragdoll_grabA",{0, 0.23214285714286},function()self:snd("re2/em6200/attack_swing"..math.random(5)..".mp3")end)
 	self:SequenceEvent("ragdoll_grabA",{0.23214285714286,0.41071428571429,0.96428571428571},stepsnd)
@@ -239,6 +227,10 @@ function ENT:CustomInitialize()
 	self:SequenceEvent("g_taunt2",12/54,function(self,cycle)self:snd("re2/em6200/foley_taunt"..math.random(2)..".mp3")end)
 	self:SequenceEvent("g_taunt2",20/54,function(self,cycle)self:snd("re2/em6200/land.mp3")end)
 	
+	self:SequenceEvent({"g_taunt1", "g_taunt3"}, {math.Rand(0,.25),math.Rand(.25,.5),math.Rand(.5,.75),math.Rand(.75,1)}, function(self,cycle)
+		self:snd("re2/em6200/foley_adjust_hat"..math.random(2)..".mp3")
+	end)
+	
 	self:SequenceEvent("drg_climb",{17/100, 34/100, 37/100},function(self,cycle)self:snd("re2/em6200/climb"..math.random(2)..".mp3")end)
 	self:SequenceEvent("drg_climb",72/100,function(self,cycle)self:snd("re2/em6200/land.mp3")end)
 	self:SequenceEvent("drg_climb",55/100,stepsnd)
@@ -246,19 +238,41 @@ function ENT:CustomInitialize()
 	
 	self:SequenceEvent("9200",{6/84, 13/84, 20/84, 53/84, 70/84, 83/84},stepsnd)
 	self:SequenceEvent("9201",{7/76,13/76,57/76,71/76},stepsnd)
+	
+	self:SequenceEvent("drg_jump_gap",{13/66, 21/66, 37/66, 47/66, 53/66},stepsnd)
+	self:SequenceEvent("drg_jump_gap",35/66,function(self,cycle)self:snd("re2/em6200/land.mp3")end)
+	
+	self:SequenceEvent({"3100_l","3100_r"},{11/100,21/100},function()self:snd("re2/em6200/attack_swing"..math.random(5)..".mp3")end)
+	self:SequenceEvent({"3100_l","3100_r"}, {11/100,20/100,23/100,58/100,75/100},stepsnd)
+	self:SequenceEvent({"3100_l","3100_r"},23/100,self.AttackFunction)
+	
+	self:SequenceEvent("3101",12/53,function()self:snd("re2/em6200/attack_swing"..math.random(5)..".mp3")end)
+	self:SequenceEvent("3101", {7/53,17/53,28/53,40/53,52/53},stepsnd)
+	self:SequenceEvent("3101",14/53,self.AttackFunction)
+	
+	self:SequenceEvent("3102",17/56,function()self:snd("re2/em6200/attack_swing"..math.random(5)..".mp3")end)
+	self:SequenceEvent("3102", {6/56,19/56,31/56,43/56,55/56},stepsnd)
+	self:SequenceEvent("3102",18/56,self.AttackFunction)
 	--// sequence events for ez sound playback
+	
+	self:SetName("Mr_X_"..self:EntIndex())
 end
-
+function ENT:OnOtherKilled(v,dmginfo)
+	if !self:IsPossessed() and ((dmginfo:GetAttacker() == self) and (math.random(1,5) <3)) then
+		self:Taunt()
+	end
+end
 function ENT:DoorCode(door)
-	local doorseq,doordur = self:LookupSequence("9200")
-	local doorseq2,doordur2 = self:LookupSequence("9201")
-	if IsValid(door) and door:GetClass() == "prop_door_rotating" then
-	-- self:CallInCoroutine(function(self, delay)
-	-- if delay > 0.1 then return end
-		self.CanOpenDoor = false
-		self.CanAttack = false
-		self:SetNotSolid(true)
-		door:SetNotSolid(true)
+	if not self:GetCooldown("MRXDoor") then return end
+	if self:GetCooldown("MRXDoor") == 0 then
+		self:SetCooldown("MRXDoor", 6)
+		local doorseq,doordur = self:LookupSequence("9200")
+		local doorseq2,doordur2 = self:LookupSequence("9201")
+		if IsValid(door) and door:GetClass() == "prop_door_rotating" then
+			self.CanOpenDoor = false
+			self.CanAttack = false
+			self:SetNotSolid(true)
+			door:SetNotSolid(true)
 			-- find ourselves to know which side of the door we're on
 			local fwd = door:GetPos()+door:GetForward()*5
 			local bck = door:GetPos()-door:GetForward()*5
@@ -273,9 +287,9 @@ function ENT:DoorCode(door)
 				self:SetNotSolid(true)
 				door:SetNotSolid(true)
 				if isentity(fuck_double_doors2) then
-					self:SetPos(door:GetPos()+(door:GetForward()*50)+(door:GetRight()*-50))
+					self:SetPos(door:GetPos()+(door:GetForward()*50)+(door:GetRight()*-50)+(door:GetUp()*-52))
 				else
-					self:SetPos(door:GetPos()+(door:GetForward()*80)+(door:GetRight()*-32))
+					self:SetPos(door:GetPos()+(door:GetForward()*80)+(door:GetRight()*-32)+(door:GetUp()*-52))
 				end
 				local ang = door:GetAngles()
 				ang:RotateAroundAxis(Vector(0,0,1),180)
@@ -284,9 +298,9 @@ function ENT:DoorCode(door)
 				self:SetNotSolid(true)
 				door:SetNotSolid(true)
 				if isentity(fuck_double_doors2) then
-					self:SetPos(door:GetPos()+(door:GetForward()*-50)+(door:GetRight()*-50))
+					self:SetPos(door:GetPos()+(door:GetForward()*-50)+(door:GetRight()*-50)+(door:GetUp()*-52))
 				else
-					self:SetPos(door:GetPos()+(door:GetForward()*-80)+(door:GetRight()*-12))
+					self:SetPos(door:GetPos()+(door:GetForward()*-80)+(door:GetRight()*-12)+(door:GetUp()*-52))
 				end
 				local a = (door:GetAngles())
 				a:Normalize()
@@ -322,8 +336,7 @@ function ENT:DoorCode(door)
 							self:SetNotSolid(false)
 						end)
 					end)
-					-- self:PlaySequenceAndMoveAbsolute("9201")
-					self:PlaySequenceAndMove("9201")
+					self:PlaySequenceAndMove("9201",{rate=1, gravity=true, collisions=false})
 				else
 					self:Timer(0.5,function()
 						if !IsValid(self) then return end
@@ -343,8 +356,7 @@ function ENT:DoorCode(door)
 							self:SetNotSolid(false)
 						end)
 					end)
-					-- self:PlaySequenceAndMoveAbsolute("9200")
-					self:PlaySequenceAndMove("9200")
+					self:PlaySequenceAndMove("9200",{rate=1, gravity=true, collisions=false})
 				end
 			else
 				self:Timer(1,function()
@@ -359,12 +371,12 @@ function ENT:DoorCode(door)
 					self:SetNotSolid(false)
 				end)
 			end
-	-- end)
+		end
 	end
 end
 
 function ENT:OnContact(ent)
-	if self.CanAttack and (ent != self:GetEnemy()) and (ent:IsPlayer() or ent:IsNPC()) then
+	if !self:IsPossessed() and (self.CanAttack and (ent != self:GetEnemy()) and (ent:IsPlayer() or ent:IsNPC())) then
 		self.CanAttack = false
 		local velocity = Vector(0, 150, 50)
 		local right = self:GetPos()+self:GetRight()*1
@@ -461,6 +473,7 @@ function ENT:Grab(ent)
 end
 
 function ENT:Shock(duration)
+	self.CanAttack = false
 	local fx = EffectData()
 	fx:SetEntity(self)
 	fx:SetOrigin(self:LocalToWorld(Vector(0,0,50)))
@@ -481,6 +494,7 @@ function ENT:Shock(duration)
 	self:OneKnee(duration)
 end
 function ENT:Stun(duration)
+	self.CanAttack = false
 	self:PlaySequenceAndMove("2200")
 	self:OneKnee(duration)
 end
@@ -496,6 +510,7 @@ function ENT:OneKnee(duration)
 	self:snd("re2/em6200/foley_long"..math.random(2)..".mp3")
 	self:PlaySequenceAndMove("2202")
 	self:SetHealthRegen(0)
+	self.CanAttack = true
 end
 
 function ENT:ShouldRun()
@@ -576,35 +591,38 @@ function ENT:OnSpawn()
 	self:PlaySequenceAndMove("nzu_intro_land")
 end
 
-local function combineballcode(self)
+function ENT:OnCombineBall(ball)
+	local dmg = DamageInfo()
+	dmg:SetAttacker(IsValid(ball:GetOwner()) and ball:GetOwner() or ball)
+	dmg:SetInflictor(ball)
+	dmg:SetDamageType(DMG_BLAST)
+	dmg:SetDamage(1)
+	
+	self:TakeDamageInfo(dmg)
+	ball:Fire("explode", 0)
+	
+	return true
+end
+function ENT:OnChaseEnemy(enemy)
 	for k,ball in pairs(ents.FindInSphere(self:LocalToWorld(Vector(0,0,75)), 50)) do
-		if IsValid(ball) and ball:GetClass() == "prop_combine_ball" then
-			local dmg = DamageInfo()
-			dmg:SetAttacker(IsValid(ball:GetOwner()) and ball:GetOwner() or ball)
-			dmg:SetInflictor(ball)
-			dmg:SetDamageType(DMG_BLAST)
-			dmg:SetDamage(1)
-			
-			self:TakeDamageInfo(dmg)
-			ball:Fire("explode", 0)
-		end
 		if IsValid(ball) and ball:GetClass() == "prop_door_rotating" then
 			self:DoorCode(ball)
 		end
 	end
 end
-function ENT:OnChaseEnemy(enemy)
-	combineballcode(self)
-end
 function ENT:OnPossession() 
-	combineballcode(self)
+	for k,ball in pairs(ents.FindInSphere(self:LocalToWorld(Vector(0,0,75)), 50)) do
+		if IsValid(ball) and ball:GetClass() == "prop_door_rotating" then
+			self:DoorCode(ball)
+		end
+	end
 end
 
 -- Damage --
 
 function ENT:OnTakeDamage(dmg)
 	if dmg:IsDamageType(DMG_BLAST) then 
-		dmg:ScaleDamage(3)
+		dmg:ScaleDamage(1.2)
 	end
 	if IsValid(dmg:GetAttacker()) and dmg:GetAttacker():IsPlayer() then
 		local hitgroup = dmg:GetAttacker():GetEyeTrace().HitGroup
@@ -623,14 +641,13 @@ function ENT:OnTakeDamage(dmg)
 					phys:AddAngleVelocity(Vector(0, 500, 0))
 					self.ShotOffHat = true
 			end
-			return 2
 		end
-		if hitgroup == HITGROUP_RIGHTARM and dmg:GetDamage() > 100 then
+		if hitgroup == HITGROUP_RIGHTARM and (dmg:GetDamage() > 100) and self.CanAttack then
 			self.CanAttack = false
 			self:PlaySequence("g_flinchR")
 			self:Timer(65/30, function() self.CanAttack=true end)
 		end
-		if hitgroup == HITGROUP_LEFTARM and dmg:GetDamage() > 100 then
+		if hitgroup == HITGROUP_LEFTARM and (dmg:GetDamage() > 100) and self.CanAttack then
 			self.CanAttack = false
 			self:PlaySequence("g_flinchL")
 			self:Timer(65/30, function() self.CanAttack=true end)
@@ -638,7 +655,8 @@ function ENT:OnTakeDamage(dmg)
 	end
 end
 function ENT:AfterTakeDamage(dmg,delay)
-	if dmg:IsDamageType(DMG_BLAST) then 
+	if delay > 0.1 then return end
+	if dmg:IsDamageType(DMG_BLAST) then
 		local flinch = math.random(1,3)
 		if flinch == 1 then
 			self:snd("re2/em6200/foley"..math.random(3)..".mp3")
@@ -646,7 +664,12 @@ function ENT:AfterTakeDamage(dmg,delay)
 		elseif flinch == 2 then
 			self:snd("re2/em6200/foley"..math.random(3)..".mp3")
 			self:PlaySequenceAndMove("9060")
-		elseif flinch == 3 then
+		end
+	end
+	
+	if IsValid(dmg:GetAttacker()) and dmg:GetAttacker():IsPlayer() then
+		local hitgroup = dmg:GetAttacker():GetEyeTrace().HitGroup
+		if hitgroup == HITGROUP_HEAD and (dmg:GetDamage() > 100) then
 			self:snd("re2/em6200/foley"..math.random(3)..".mp3")
 			self:PlaySequenceAndMove("9061")
 		end
@@ -678,24 +701,25 @@ function ENT:PossessionControls(forward, backward, right, left)
 end
 
 function ENT:OnStartClimbing(ladder, height,down)
-	if down then return end
-	if not isvector(ladder) then
-		self:PlaySequenceAndMoveAbsolute("ladder_start", 1, function()
-			if isvector(ladder) then
-				self:FaceTowards(ladder)
-			else self:FaceTowards(ladder:GetBottom()) end
-		end)
-		self.RightLadder = false
-		self:LoopTimer(0.5, function()
-			if not self:IsClimbing() then return false end
-			self.RightLadder = not self.RightLadder
-			if self.RightLadder then
-				self.ClimbUpAnimation = "ladder_r"
-			else
-				self.ClimbUpAnimation = "ladder_l"
-			end
-		end)
-	else return true end
+    if down then return end
+    if not isvector(ladder) or self:IsPossessed() then
+		self:SetPos(self:GetPos() + self:GetForward()*-40)
+        self:PlaySequenceAndMoveAbsolute("ladder_start", 1, function()
+            if isvector(ladder) then
+                self:FaceTowards(ladder)
+            else self:FaceTowards(ladder:GetBottom()) end
+        end)
+        self.RightLadder = false
+        self:LoopTimer(0.5, function()
+            if not self:IsClimbing() then return false end
+            self.RightLadder = not self.RightLadder
+            if self.RightLadder then
+                self.ClimbUpAnimation = "ladder_r"
+            else
+                self.ClimbUpAnimation = "ladder_l"
+            end
+        end)
+    else return true end
 end
 
 function ENT:WhileClimbing(ladder, left)
